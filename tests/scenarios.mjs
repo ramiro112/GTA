@@ -191,3 +191,77 @@ scen.dbg = async ({ page }) => {
     return JSON.stringify({ paused: g.paused, pts: g.interactions.points.filter((p) => p.type === 'garage').map((p) => [p.garage, p.x, p.z, p.r]), pos: v.pos.toArray(), handlers: [...g.interactions.handlers.keys()], cur: g.interactions.current && g.interactions.current.type, dead: g.player.dead });
   }));
 };
+
+scen.weapons = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const r = await page.evaluate(() => {
+    const g = window.game;
+    const out = [];
+    const pl = g.player;
+    pl.teleport(150, null, -120, Math.PI);
+    g.camera3p.yaw = Math.PI; g.camera3p.pitch = 0.0;
+    pl.inventory.give('pistol', 48); pl.inventory.give('rifle', 120); pl.inventory.give('shotgun', 24); pl.inventory.give('grenade', 3); pl.inventory.give('rocket', 3); pl.inventory.give('bat');
+    const npc = g.population.spawn({ kind: 'gang_rust', x: 150, z: -132, heading: 0 });
+    g.simulate(0.3);
+    out.push('NPC HP ' + npc.health);
+    // Pistole
+    pl.inventory.select(2); g.weapons._equipModel();
+    const inp = g.input;
+    inp.codesDown.add('Mouse2');
+    for (let i = 0; i < 6; i++) { inp.codesPressed.add('Mouse0'); g.simulate(0.3); }
+    inp.codesDown.delete('Mouse2');
+    out.push('Nach 6 Pistolenschüssen: HP ' + npc.health.toFixed(0) + ' tot=' + npc.dead + ' Magazin ' + pl.inventory.current.mag + '/' + pl.inventory.current.ammo + ' Treffer ' + g.stats.hits + '/' + g.stats.shots);
+    return out;
+  });
+  console.log(r.join('\n'));
+  await shot('01_pistol');
+  const r2 = await page.evaluate(() => {
+    const g = window.game, pl = g.player, inp = g.input, out = [];
+    // Sturmgewehr Dauerfeuer auf neuen Gegner
+    const npc = g.population.spawn({ kind: 'gang_wolves', x: 150, z: -140, heading: 0 });
+    pl.inventory.select(5); g.weapons._equipModel();
+    g.camera3p.pitch = 0.02;
+    inp.codesDown.add('Mouse2'); inp.codesDown.add('Mouse0');
+    g.simulate(1.5);
+    inp.codesDown.delete('Mouse0'); inp.codesDown.delete('Mouse2');
+    out.push('Gewehr: Gegner tot=' + npc.dead + ' Pickups=' + g.weapons.pickups.length + ' Rückstoss pitch=' + g.camera3p.pitch.toFixed(2));
+    // Nachladen
+    const w = pl.inventory.current; w.mag = 3;
+    inp.codesPressed.add('KeyR'); g.simulate(2.5);
+    out.push('Nach Nachladen: ' + w.mag + '/' + w.ammo);
+    // Granate
+    pl.inventory.select(7); g.weapons._equipModel();
+    const car = g.vehicles.spawn('sedan', { x: 150, z: -150, heading: 0 });
+    g.simulate(0.3);
+    g.camera3p.pitch = 0.1;
+    inp.codesPressed.add('Mouse0'); g.simulate(3.5);
+    out.push('Granate: Auto HP ' + car.health.toFixed(0) + ' Brand=' + car.onFire + ' zerstört=' + car.destroyed);
+    // Rakete
+    pl.inventory.select(8); g.weapons._equipModel();
+    const car2 = g.vehicles.spawn('suv', { x: 150, z: -165, heading: 0 });
+    g.simulate(0.3);
+    g.camera3p.pitch = 0.05;
+    inp.codesDown.add('Mouse2'); inp.codesPressed.add('Mouse0'); g.simulate(1.0); inp.codesDown.delete('Mouse2');
+    out.push('Rakete: SUV HP ' + car2.health.toFixed(0) + ' zerstört=' + car2.destroyed + ' Brände=' + g.combat.fires.length);
+    // Nahkampf
+    pl.inventory.select(1); g.weapons._equipModel();
+    const ped = g.population.spawn({ kind: 'ped', x: pl.pos.x, z: pl.pos.z - 1.2, heading: 0 });
+    pl.heading = Math.PI;
+    for (let i = 0; i < 4; i++) { inp.codesPressed.add('Mouse0'); g.simulate(0.9); }
+    out.push('Schläger: Passant HP ' + ped.health.toFixed(0) + ' tot=' + ped.dead);
+    // Waffen aufsammeln
+    const pk = g.weapons.pickups.find((p) => !p.respawn);
+    if (pk) { pl.teleport(pk.pos.x, null, pk.pos.z); g.simulate(0.3); out.push('Aufgesammelt: ' + pk.type + ' noch da=' + g.weapons.pickups.includes(pk)); }
+    // Deckung
+    pl.teleport(176, null, -75.2, Math.PI); g.simulate(0.2);
+    g.weapons.toggleCover(pl);
+    out.push('Deckung: ' + !!pl.inCover);
+    return out;
+  });
+  console.log(r2.join('\n'));
+  await shot('02_after');
+};
+scen.dbg2 = async ({ page }) => {
+  await page.click('[data-a=new]');
+  console.log(await page.evaluate(() => { const g = window.game; g.simulate(0.2); return JSON.stringify({ armor: g.player.armor, w: document.querySelector('#minimap-wrap .bar.armor > div').style.width, h: document.querySelector('#minimap-wrap .bar.health > div').style.width }); }));
+};

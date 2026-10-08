@@ -7,6 +7,8 @@ import { VehicleManager } from './vehicles/manager.js';
 import { Economy } from './economy/economy.js';
 import { Services } from './vehicles/services.js';
 import { Interactions } from './core/interactions.js';
+import { WeaponSystem } from './weapons/weapons.js';
+import { Population } from './ai/population.js';
 
 /** Hülle, damit das Partikelsystem wie ein System aktualisiert wird. */
 class FxSystem {
@@ -18,5 +20,5 @@ class FxSystem {
 }
 
 export function installSystems(game) {
-  game.systemModules = [Economy, FxSystem, Debris, Combat, VehicleManager, Interactions, Services];
+  game.systemModules = [Economy, FxSystem, Debris, Combat, WeaponSystem, VehicleManager, Population, Interactions, Services];
 }

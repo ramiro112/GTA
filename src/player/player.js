@@ -91,6 +91,17 @@ export class Player {
     const mag = Math.min(1, Math.hypot(wx, wz));
     const wl = Math.hypot(wx, wz);
     if (wl > 0.01) { wx /= wl; wz /= wl; }
+    // Deckung: nur entlang der Wand bewegen, vom Hindernis weg = Deckung verlassen
+    if (this.inCover && wl > 0.01) {
+      const c = this.inCover;
+      if (wx * c.nx + wz * c.nz > 0.75) { this.inCover = null; this.crouch = false; }
+      else { const tx = -c.nz, tz = c.nx; const a = wx * tx + wz * tz; wx = tx * a; wz = tz * a; }
+    }
+    if (this.inCover && this.inCover.box) {
+      const b = this.inCover.box;
+      const cx = Math.max(b.minX, Math.min(this.pos.x, b.maxX)), cz = Math.max(b.minZ, Math.min(this.pos.z, b.maxZ));
+      if (Math.hypot(this.pos.x - cx, this.pos.z - cz) > 1.3) { this.inCover = null; this.crouch = false; }
+    }
 
     // Wasser?
     const terrainH = groundTerrain(this.pos.x, this.pos.z, this.pos.y);

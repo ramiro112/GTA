@@ -2,6 +2,7 @@
 
 import { CONFIG } from '../config.js';
 import { t } from '../core/i18n.js';
+import { WeaponWheel } from './weaponwheel.js';
 
 export class UI {
   constructor(game, root) {
@@ -11,6 +12,7 @@ export class UI {
     this.mode = 'main';
     root.insertAdjacentHTML('beforeend', '<div id="menus"></div>');
     this.menus = document.getElementById('menus');
+    this.weaponWheel = new WeaponWheel(game, root);
     game.input.onPointerLockChange = (locked) => {
       if (!locked && this.mode === 'game' && this.game.started && !this.game.paused && !this.noAutoPause) this.showPause();
     };
