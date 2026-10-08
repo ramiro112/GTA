@@ -552,3 +552,164 @@ scen.ui = async ({ page, shot, wait }) => {
   const r3 = await page.evaluate(() => { const g = window.game; g.ui.resume(); g.settings.language = 'en'; g.applySettings(); g.ui.showPause(); const txt = document.querySelector('.menu-btn').textContent; g.settings.language = 'de'; g.applySettings(); g.ui.resume(); return 'Englisch: ' + txt; });
   console.log(r3);
 };
+
+scen.perf = async ({ page }) => {
+  await page.click('[data-a=new]');
+  const r = await page.evaluate(() => {
+    const g = window.game, out = [];
+    const measure = (label, sec) => {
+      const t0 = performance.now();
+      g.simulate(sec);
+      const ms = performance.now() - t0;
+      const frames = sec * 20; // simulate() ruft update alle 3 Physikschritte
+      out.push(`${label}: ${(ms / (sec * 60)).toFixed(2)} ms pro Physikschritt, ~${(ms / frames).toFixed(1)} ms pro Frame (Logik), NPCs ${g.population.characters.length}, Fahrzeuge ${g.vehicles.list.length}`);
+    };
+    g.player.teleport(150, null, -200);
+    g.simulate(5);
+    measure('Innenstadt zu Fuss', 10);
+    const v = g.vehicles.spawn('sports', { x: 150, z: -190, heading: 0 }); g.vehicles._seatPlayer(v);
+    g.input.codesDown.add('KeyW');
+    measure('Innenstadt im Auto', 10);
+    g.input.codesDown.delete('KeyW');
+    g.police.wanted.ensureStars(4, g.player.pos);
+    measure('4 Sterne Verfolgung', 10);
+    // Einzelne Systeme profilieren
+    const prof = {};
+    for (const s of g.systems) {
+      const name = s.constructor.name;
+      const t0 = performance.now();
+      for (let i = 0; i < 60; i++) { if (s.fixedUpdate) s.fixedUpdate(1 / 60); if (s.update) s.update(1 / 60); }
+      prof[name] = ((performance.now() - t0) / 60).toFixed(3);
+    }
+    out.push('ms pro Frame je System: ' + Object.entries(prof).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, v]) => k + ' ' + v).join(', '));
+    // Render-Statistik
+    g.renderer.render(g.scene, g.camera);
+    const info = g.renderer.info;
+    out.push(`Render: ${info.render.calls} Draw Calls, ${(info.render.triangles / 1000).toFixed(0)}k Dreiecke, Geometrien ${info.memory.geometries}, Texturen ${info.memory.textures}`);
+    out.push(`JS-Heap: ${performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB' : 'n/a'}`);
+    return out;
+  });
+  console.log(r.join('\n'));
+};
+
+// Spielt alle Story-Missionen automatisiert durch (Teleports statt echter Fahrt), um die
+// Abschliessbarkeit zu prüfen. Gibt je Mission "OK" oder die Stelle aus, an der es hakt.
+scen.playthrough = async ({ page }) => {
+  await page.click('[data-a=new]');
+  const res = await page.evaluate(async () => {
+    const g = window.game, M = g.missions, E = M.engine, pl = g.player, out = [];
+    g.godMode = true;
+    const step = (s = 0.25) => { g.input.tap('Enter'); g.simulate(s); };
+    const run = () => E.active;
+    const data = () => (E.active ? E.active.data : {});
+    const stage = () => (E.active ? E.active.stage : -1);
+    const seat = (v) => { if (pl.vehicle) g.vehicles.exitVehicle(pl, true); pl.teleport(v.pos.x + 3, null, v.pos.z); g.vehicles._seatPlayer(v); g.simulate(0.3); };
+    const moveTo = (x, z, y = null) => {
+      const v = pl.vehicle;
+      if (v) { const gy = y ?? g.collision.groundHeight(x, z, 300, 0).h; v.pos.set(x, gy + (v.comHeight || 1.3) + (v.model && v.model.bottom ? -v.model.bottom - (v.comHeight || 0) : 0), z); v.vel.set(0, 0, 0); v.angVel && v.angVel.set(0, 0, 0); v.prevPos.copy(v.pos); }
+      else pl.teleport(x, y, z);
+      g.simulate(0.4);
+    };
+    const waitStage = (pred, sec = 20) => { for (let t = 0; t < sec * 4 && run() && !pred(); t++) step(); return !!run() && pred(); };
+    const killAll = (list) => { for (const n of list) if (!n.dead) n.damage(99999, { source: pl, type: 'bullet' }); g.simulate(0.3); };
+    const start = (id) => {
+      const def = E.missions.get(id);
+      for (const r of def.requires || []) E.completed.add(r);
+      if (pl.vehicle) g.vehicles.exitVehicle(pl, true);
+      g.police.reset(); pl.revive();
+      E.start(id); g.simulate(0.2);
+    };
+    const report = (id) => { const ok = E.completed.has(id) && E.stats[id] && E.stats[id].passed > 0; out.push(`${id}: ${ok ? 'OK' : 'NICHT abgeschlossen (Stufe ' + stage() + ', ' + (E.failReason || '') + ')'}`); if (E.active) E.abort('Test'); g.simulate(0.2); };
+
+    const missions = [
+      ['heimkehr', () => {
+    start('heimkehr');
+    waitStage(() => data().car && stage() >= 2); seat(data().car);
+    moveTo(330, 66); waitStage(() => false, 10);
+      }],
+      ['ersatzteile', () => {
+    start('ersatzteile');
+    waitStage(() => data().car && stage() >= 2); moveTo(90, -98); waitStage(() => stage() >= 3, 3);
+    seat(data().car); waitStage(() => stage() >= 4, 6);
+    moveTo(330, 66); waitStage(() => false, 10);
+      }],
+      ['schutzgeld', () => {
+    start('schutzgeld');
+    for (let w = 0; w < 4 && run(); w++) { waitStage(() => data().enemies && data().enemies.some((n) => !n.dead), 6); if (data().enemies) killAll(data().enemies); g.simulate(0.5); }
+    waitStage(() => false, 10);
+      }],
+      ['eilzustellung', () => {
+    start('eilzustellung');
+    waitStage(() => data().truck && stage() >= 2); seat(data().truck); moveTo(850, 300); waitStage(() => false, 10);
+      }],
+      ['spitzel', () => {
+    start('spitzel');
+    waitStage(() => data().myCar && stage() >= 2); seat(data().myCar);
+    waitStage(() => data().target && stage() >= 4, 4); moveTo(240, 186); waitStage(() => stage() >= 5, 4); data().target.explode(pl); waitStage(() => false, 10);
+      }],
+      ['flugstunde', () => {
+    start('flugstunde');
+    waitStage(() => data().plane && stage() >= 2); seat(data().plane);
+    for (let i = 0; i < 14 && run() && stage() === 3; i++) { const cp = data()._cp; const RINGS = run().stageObj; void RINGS; const p = data()._cpm ? data()._cpm.pos : null; if (p) moveTo(p.x, p.z, p.y - 1.3); }
+    { const p = data().plane; p.gearDown = true; p.pos.set(-600, 1.4, -770); p.prevPos.copy(p.pos); p.vel.set(0, 0, 0); p.quat.setFromAxisAngle({ x: 0, y: 1, z: 0 }, Math.PI / 2); g.simulate(1); }
+    waitStage(() => false, 10);
+      }],
+      ['luftrettung', () => {
+    start('luftrettung');
+    waitStage(() => data().heli && stage() >= 2); seat(data().heli);
+    waitStage(() => stage() >= 3, 3);
+    { const h = data().heli; h.pos.set(210, 22 - h.model.bottom, -355); h.prevPos.copy(h.pos); h.vel.set(0, 0, 0); g.simulate(1.5); }
+    waitStage(() => stage() >= 5, 8);
+    { const h = data().heli; h.pos.set(-30, 28 - h.model.bottom + 0.05, -245); h.prevPos.copy(h.pos); h.vel.set(0, 0, 0); g.simulate(1.5); }
+    waitStage(() => false, 10);
+      }],
+      ['unsichtbar', () => {
+    start('unsichtbar');
+    waitStage(() => stage() >= 1, 15); moveTo(372, -690); waitStage(() => stage() >= 2, 3);
+    pl.crouch = true;
+    for (const gd of data().guards) gd.damage(99999, { source: pl, type: 'melee' });
+    moveTo(470, -640); g.simulate(0.5); moveTo(372, -690); g.simulate(0.5);
+    pl.crouch = false;
+    moveTo(366, -324); waitStage(() => false, 10);
+      }],
+      ['strassenkoenig', () => {
+    start('strassenkoenig');
+    waitStage(() => data().car && stage() >= 2); seat(data().car); waitStage(() => stage() >= 4, 5);
+    const RACE = [{ x: 500, z: 500 }, { x: 150, z: 500 }, { x: -200, z: 500 }, { x: -450, z: 500 }, { x: -680, z: 300 }, { x: -680, z: 0 }, { x: -680, z: -300 }, { x: -440, z: -540 }, { x: -90, z: -540 }, { x: 300, z: -540 }, { x: 630, z: -540 }, { x: 840, z: -300 }, { x: 840, z: 0 }, { x: 840, z: 300 }];
+    for (const p of RACE) { if (!run() || stage() !== 4) break; moveTo(p.x, p.z); }
+    waitStage(() => false, 10);
+      }],
+      ['der_plan', () => {
+    start('der_plan');
+    waitStage(() => stage() >= 1, 10); moveTo(210, -338); g.input.codesDown.add('KeyE'); waitStage(() => stage() >= 3, 6); g.input.codesDown.delete('KeyE');
+    waitStage(() => data().suv, 3); seat(data().suv); waitStage(() => stage() >= 5, 4);
+    moveTo(96, 72); waitStage(() => stage() >= 7, 6);
+    waitStage(() => data().wolves, 3); killAll(data().wolves); if (pl.vehicle) g.vehicles.exitVehicle(pl, true); moveTo(620, 125);
+    waitStage(() => false, 10);
+      }],
+      ['der_coup', () => {
+    start('der_coup');
+    waitStage(() => data().suv && stage() >= 2); seat(data().suv); moveTo(210, -326); waitStage(() => stage() >= 4, 4);
+    if (pl.vehicle) g.vehicles.exitVehicle(pl, true);
+    moveTo(210, -362); g.input.codesDown.add('KeyE'); waitStage(() => stage() >= 7, 12); g.input.codesDown.delete('KeyE');
+    moveTo(210, -365); waitStage(() => stage() >= 9, 3);
+    seat(data().suv); waitStage(() => stage() >= 10, 3);
+    g.police.clear('test'); waitStage(() => stage() >= 11, 3);
+    moveTo(64, 73); waitStage(() => false, 10);
+      }],
+      ['abrechnung', () => {
+    start('abrechnung');
+    waitStage(() => stage() >= 1, 10); moveTo(680, -310); waitStage(() => data().guards, 4);
+    killAll(data().guards); waitStage(() => data().boss, 10);
+    killAll([data().boss]); waitStage(() => false, 15);
+      }],
+    ];
+    for (const [id, fn] of missions) {
+      try { fn(); } catch (e) { out.push(`${id}: FEHLER im Test – ${e.message} (Stufe ${stage()})`); }
+      report(id);
+    }
+    out.push(`Abgeschlossen: ${E.completed.size}/12, Geld ${g.economy.money}`);
+    return out;
+  });
+  console.log(res.join('\n'));
+};

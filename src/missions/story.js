@@ -158,28 +158,40 @@ export function registerStory(game, M) {
       S.custom({ start(c) { c.data.myCar = M.spawnVehicle(c, 'sports', 752, 318, Math.PI, { color: 0x00a0ff }); c.data.myCar.locked = false; c.data.myCar.owned = true; c.next(); } }),
       S.enter((c) => c.data.myCar, { objective: 'Steig in den Sportwagen.' }),
       S.custom({
-        objective: 'Stoppe den Spitzel, bevor er das Revier der Rostschlangen erreicht!',
         start(c) {
+          // Spitzel wartet im Auto an der Grillstation
           const v = M.spawnVehicle(c, 'sedan', 205, 186, -Math.PI / 2, { color: 0x8a8f99 });
           const d = M.spawnNPC(c, 'gang_rust', 205, 186);
           d.give('pistol', 99); d.equip('fist');
           d.vehicle = v; v.driver = d;
           d.missionTarget = true;
           c.data.target = v; c.data.driver = d;
-          c.data.escape = new THREE.Vector3(690, 0, -300);
-          v.ai = { mode: 'direct', goal: c.data.escape, maxSpeed: 23, arriveDist: 20 };
-          game.traffic.cars.push(v);
-          c.track(makeMarker(game, { x: 690, z: -300 }, { radius: 20, color: 0xff3b30, height: 1 }));
-          c.data.arrow = c.track({ ...makeArrowFor(game, v) });
           v.blip = { color: '#ff3b30', size: 9 };
+          c.track(makeArrowFor(game, v));
+          c.next();
+        },
+      }),
+      S.goto({ target: { x: 205, z: 186 }, radius: 100, vehicle: true, objective: 'Fahr zur Grillstation – der graue Corvan ist der Spitzel.' }),
+      S.custom({
+        objective: 'Stoppe den Spitzel, bevor er das Revier der Rostschlangen erreicht!',
+        checkpoint: true,
+        start(c) {
+          const v = c.data.target;
+          c.data.escape = new THREE.Vector3(690, 0, -300);
+          v.ai = { mode: 'direct', goal: c.data.escape, maxSpeed: 22, arriveDist: 20 };
+          game.traffic.cars.push(v);
+          c.data.driver.say('Mist, das ist Varga!', 2);
+          c.track(makeMarker(game, { x: 690, z: -300 }, { radius: 20, color: 0xff3b30, height: 1 }));
           c.data.stopT = 0;
+          c.data.farT = 0;
         },
         update(c, dt) {
           const v = c.data.target, d = c.data.driver;
           if (v.destroyed || d.dead) return true;
           const pp = pl().vehicle ? pl().vehicle.pos : pl().pos;
           const dist = pp.distanceTo(v.pos);
-          if (dist > 320) return 'fail:Der Spitzel ist entkommen.';
+          if (dist > 260) c.data.farT += dt; else c.data.farT = 0;
+          if (c.data.farT > 12) return 'fail:Der Spitzel ist entkommen.';
           if (v.pos.distanceTo(c.data.escape) < 25) return 'fail:Der Spitzel hat Rask erreicht.';
           if (Math.abs(v.speed) < 1.5 && dist < 14) c.data.stopT += dt; else c.data.stopT = 0;
           if (c.data.stopT > 2) {
