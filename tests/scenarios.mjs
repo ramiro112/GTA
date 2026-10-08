@@ -208,7 +208,7 @@ scen.weapons = async ({ page, shot }) => {
     pl.inventory.select(2); g.weapons._equipModel();
     const inp = g.input;
     inp.codesDown.add('Mouse2');
-    for (let i = 0; i < 6; i++) { inp.codesPressed.add('Mouse0'); g.simulate(0.3); }
+    for (let i = 0; i < 6; i++) { inp.tap('Mouse0'); g.simulate(0.3); }
     inp.codesDown.delete('Mouse2');
     out.push('Nach 6 Pistolenschüssen: HP ' + npc.health.toFixed(0) + ' tot=' + npc.dead + ' Magazin ' + pl.inventory.current.mag + '/' + pl.inventory.current.ammo + ' Treffer ' + g.stats.hits + '/' + g.stats.shots);
     return out;
@@ -227,27 +227,27 @@ scen.weapons = async ({ page, shot }) => {
     out.push('Gewehr: Gegner tot=' + npc.dead + ' Pickups=' + g.weapons.pickups.length + ' Rückstoss pitch=' + g.camera3p.pitch.toFixed(2));
     // Nachladen
     const w = pl.inventory.current; w.mag = 3;
-    inp.codesPressed.add('KeyR'); g.simulate(2.5);
+    inp.tap('KeyR'); g.simulate(2.5);
     out.push('Nach Nachladen: ' + w.mag + '/' + w.ammo);
     // Granate
     pl.inventory.select(7); g.weapons._equipModel();
     const car = g.vehicles.spawn('sedan', { x: 150, z: -150, heading: 0 });
     g.simulate(0.3);
     g.camera3p.pitch = 0.1;
-    inp.codesPressed.add('Mouse0'); g.simulate(3.5);
+    inp.tap('Mouse0'); g.simulate(3.5);
     out.push('Granate: Auto HP ' + car.health.toFixed(0) + ' Brand=' + car.onFire + ' zerstört=' + car.destroyed);
     // Rakete
     pl.inventory.select(8); g.weapons._equipModel();
     const car2 = g.vehicles.spawn('suv', { x: 150, z: -165, heading: 0 });
     g.simulate(0.3);
     g.camera3p.pitch = 0.05;
-    inp.codesDown.add('Mouse2'); inp.codesPressed.add('Mouse0'); g.simulate(1.0); inp.codesDown.delete('Mouse2');
+    inp.codesDown.add('Mouse2'); inp.tap('Mouse0'); g.simulate(1.0); inp.codesDown.delete('Mouse2');
     out.push('Rakete: SUV HP ' + car2.health.toFixed(0) + ' zerstört=' + car2.destroyed + ' Brände=' + g.combat.fires.length);
     // Nahkampf
     pl.inventory.select(1); g.weapons._equipModel();
     const ped = g.population.spawn({ kind: 'ped', x: pl.pos.x, z: pl.pos.z - 1.2, heading: 0 });
     pl.heading = Math.PI;
-    for (let i = 0; i < 4; i++) { inp.codesPressed.add('Mouse0'); g.simulate(0.9); }
+    for (let i = 0; i < 4; i++) { inp.tap('Mouse0'); g.simulate(0.9); }
     out.push('Schläger: Passant HP ' + ped.health.toFixed(0) + ' tot=' + ped.dead);
     // Waffen aufsammeln
     const pk = g.weapons.pickups.find((p) => !p.respawn);
@@ -338,7 +338,7 @@ scen.police = async ({ page, shot }) => {
     cop.give('pistol'); cop.equip('fist');
     g.simulate(0.5);
     const inp = g.input;
-    inp.codesPressed.add('Mouse0'); g.simulate(0.3);
+    inp.tap('Mouse0'); g.simulate(0.3);
     out.push('Nach Schuss neben Polizist: Sterne ' + g.police.stars);
     g.police.wanted.ensureStars(3, pl.pos);
     pl.health = 1e9;
@@ -380,4 +380,78 @@ scen.police = async ({ page, shot }) => {
     return out;
   });
   console.log(r2.join('\n'));
+};
+
+scen.flight = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const r = await page.evaluate(() => {
+    const g = window.game, out = [], pl = g.player;
+    // Helikopter: Start, Schweben, Vorwärtsflug
+    const h = g.vehicles.spawn('heliSmall', { x: -520, z: -700, heading: 0 });
+    pl.teleport(-516, null, -700); g.vehicles._seatPlayer(h);
+    g.simulate(0.5);
+    out.push(`Heli am Boden y=${h.pos.y.toFixed(2)} alt=${h.altitude.toFixed(2)}`);
+    const inp = g.input;
+    inp.codesDown.add('ShiftLeft'); g.simulate(5); inp.codesDown.delete('ShiftLeft');
+    out.push(`Nach Steigen: alt=${h.altitude.toFixed(1)} rotor=${h.rotor.toFixed(2)} HP=${h.health.toFixed(0)}`);
+    const a0 = h.altitude;
+    g.simulate(3);
+    out.push(`Schweben (3 s ohne Eingabe): alt ${a0.toFixed(1)} → ${h.altitude.toFixed(1)}`);
+    inp.codesDown.add('KeyW'); g.simulate(4); inp.codesDown.delete('KeyW');
+    out.push(`Vorwärts: ${(h.vel.length() * 3.6).toFixed(0)} km/h, Nick ${(h.pitchAngle * 57.3).toFixed(0)}°, Kurs ${h.heading.toFixed(2)}`);
+    inp.codesDown.add('KeyD'); g.simulate(1); out.push(`Rollen rechts: ${(h.rollAngle * 57.3).toFixed(0)}°`); inp.codesDown.delete('KeyD');
+    inp.codesDown.add('KeyE'); g.simulate(1.5); out.push(`Gieren rechts: Kurs ${h.heading.toFixed(2)}`); inp.codesDown.delete('KeyE');
+    g.simulate(2);
+    // Absprung + Fallschirm
+    inp.codesDown.add('ShiftLeft'); g.simulate(4); inp.codesDown.delete('ShiftLeft');
+    out.push(`Höhe vor Absprung: ${h.altitude.toFixed(0)} m`);
+    g.vehicles.exitVehicle(pl);
+    g.simulate(1);
+    inp.tap('Space'); g.simulate(0.2);
+    out.push(`Fallschirm offen: ${pl.parachute}, vy=${pl.vel.y.toFixed(1)}`);
+    g.simulate(12);
+    out.push(`Gelandet: onGround=${pl.onGround} HP=${pl.health.toFixed(0)} Heli zerstört=${h.destroyed}`);
+    return out;
+  });
+  console.log(r.join('\n'));
+  const r2 = await page.evaluate(() => {
+    const g = window.game, out = [], pl = g.player, inp = g.input;
+    // Flugzeug: Startlauf auf der Piste
+    const p = g.vehicles.spawn('planeProp', { x: -880, z: -770, heading: Math.PI / 2 });
+    pl.teleport(-878, null, -767); pl.dead = false; pl.health = 100; g.vehicles._seatPlayer(p);
+    g.simulate(0.5);
+    out.push(`Flugzeug am Boden alt=${p.altitude.toFixed(2)} Fahrwerk ${p.gearDown}`);
+    inp.codesDown.add('ShiftLeft'); g.simulate(2.5); inp.codesDown.delete('ShiftLeft');
+    g.simulate(6);
+    out.push(`Startlauf: ${(p.speed * 3.6).toFixed(0)} km/h, Schub ${(p.throttle * 100).toFixed(0)}%, alt ${p.altitude.toFixed(1)}`);
+    inp.codesDown.add('KeyS'); g.simulate(1.2); inp.codesDown.delete('KeyS');
+    g.simulate(4);
+    out.push(`Nach Rotation: alt ${p.altitude.toFixed(1)} m, ${(p.speed * 3.6).toFixed(0)} km/h, Nick ${(p.pitchAngle * 57.3).toFixed(0)}°, stall=${p.stalled}, HP ${p.health.toFixed(0)}`);
+    inp.tap('KeyG'); g.simulate(0.1);
+    out.push('Fahrwerk eingefahren: ' + !p.gearDown);
+    inp.codesDown.add('KeyD'); g.simulate(1.2); inp.codesDown.delete('KeyD');
+    out.push(`Kurve: Roll ${(p.rollAngle * 57.3).toFixed(0)}°`);
+    const tr = [];
+    for (let i = 0; i < 6; i++) { g.simulate(0.5); tr.push(`${p.altitude.toFixed(0)}m/${(p.pitchAngle * 57.3).toFixed(0)}°/${(p.rollAngle * 57.3).toFixed(0)}°/${(p.vel.length() * 3.6).toFixed(0)}`); }
+    out.push('Verlauf alt/nick/roll/kmh: ' + tr.join(' '));
+    out.push(`Nach Kurve: alt ${p.altitude.toFixed(1)} m Roll ${(p.rollAngle * 57.3).toFixed(0)}° Kurs ${p.heading.toFixed(2)}`);
+    return out;
+  });
+  console.log(r2.join('\n'));
+  await page.evaluate(() => { const g = window.game; g.camera3p.yaw = g.player.vehicle ? g.player.vehicle.heading : 0; g.simulate(0.2); });
+  await shot('01_plane');
+  const r3 = await page.evaluate(() => {
+    const g = window.game, out = [], pl = g.player;
+    if (pl.vehicle) g.vehicles.exitVehicle(pl, true);
+    pl.teleport(150, null, -200); pl.health = 1e6;
+    g.police.wanted.ensureStars(4, pl.pos);
+    g.police.heliTimer = 0;
+    g.simulate(14);
+    const h = g.police.heli;
+    out.push(`Polizeiheli: ${!!h} Abstand ${h ? h.pos.distanceTo(pl.pos).toFixed(0) : '-'} m, Spieler-Schaden ${(1e6 - pl.health).toFixed(0)}`);
+    return out;
+  });
+  console.log(r3.join('\n'));
+  await page.evaluate(() => { const g = window.game; g.camera3p.pitch = -0.6; g.simulate(0.1); });
+  await shot('02_police_heli');
 };

@@ -142,8 +142,8 @@ export const CONFIG = {
   aircraft: {
     heliSmall:  { kind: 'heli', name: { de: 'Helikopter "Libelle"', en: 'Helicopter "Dragonfly"' }, mass: 1400, lift: 1.8, maxSpeed: 55, yawRate: 1.6, tilt: 0.45, health: 900, fuel: 120, size: [2.2, 2.6, 9], price: 250000, weapons: false, colors: [0x2f62d8, 0xe8e8e8] },
     heliMil:    { kind: 'heli', name: { de: 'Militärhubschrauber "Falke"', en: 'Military helicopter "Falcon"' }, mass: 5000, lift: 1.75, maxSpeed: 70, yawRate: 1.3, tilt: 0.5, health: 2200, fuel: 160, size: [3, 3.4, 15], price: 0, weapons: true, colors: [0x3b4a2f] },
-    planeProp:  { kind: 'plane', name: { de: 'Propellerflugzeug "Möwe"', en: 'Prop plane "Gull"' }, mass: 900, thrust: 9000, maxSpeed: 72, stallSpeed: 22, liftK: 0.9, pitchRate: 1.1, rollRate: 1.9, yawRate: 0.5, health: 700, fuel: 200, size: [10, 2.6, 8], price: 180000, weapons: false, colors: [0xf2f2f2, 0xd32f2f] },
-    jet:        { kind: 'plane', name: { de: 'Düsenjet "Speer"', en: 'Jet "Spear"' }, mass: 9000, thrust: 160000, maxSpeed: 260, stallSpeed: 48, liftK: 0.75, pitchRate: 1.5, rollRate: 3.0, yawRate: 0.5, health: 1500, fuel: 300, size: [10, 3.6, 16], price: 0, weapons: true, colors: [0x6c7a89] },
+    planeProp:  { kind: 'plane', name: { de: 'Propellerflugzeug "Möwe"', en: 'Prop plane "Gull"' }, mass: 900, thrust: 9000, maxSpeed: 72, stallSpeed: 22, liftK: 1.0, pitchRate: 1.1, rollRate: 1.9, yawRate: 0.5, health: 700, fuel: 200, size: [10, 2.6, 8], price: 180000, weapons: false, colors: [0xf2f2f2, 0xd32f2f] },
+    jet:        { kind: 'plane', name: { de: 'Düsenjet "Speer"', en: 'Jet "Spear"' }, mass: 9000, thrust: 95000, maxSpeed: 150, stallSpeed: 45, liftK: 1.0, pitchRate: 1.5, rollRate: 3.0, yawRate: 0.5, health: 1500, fuel: 300, size: [10, 3.6, 16], price: 0, weapons: true, colors: [0x6c7a89] },
   },
   flight: {
     arcadeAutoLevel: 1.6,    // Rückstellkraft im Arcade-Modus

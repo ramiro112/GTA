@@ -120,7 +120,7 @@ export class Player {
       this.stamina = clamp(this.stamina - (canSprint ? P.staminaSprintCost : P.staminaSwimCost * 0.3) * dt, 0, P.maxStamina);
       if (this.stamina <= 0) { speed *= 0.6; this.damage(2 * dt, { type: 'drown' }); }
     } else {
-      if (input.pressed('crouch')) this.crouch = !this.crouch;
+      if (input.consume('crouch')) this.crouch = !this.crouch;
       this.sprinting = wantSprint && this.stamina > 1 && !this.crouch && !this.aiming;
       speed = this.crouch ? P.crouchSpeed : this.aiming ? P.walkSpeed * 1.2 : this.sprinting ? P.sprintSpeed : P.runSpeed;
       if (this.sprinting) this.stamina = Math.max(0, this.stamina - P.staminaSprintCost * dt);
@@ -141,7 +141,7 @@ export class Player {
     }
 
     // Springen / Klettern / Fallschirm
-    if (input.pressed('jump')) {
+    if (input.consume('jump')) {
       if (this.swimming) this.vel.y = 2;
       else if (this.onGround) {
         const fx = Math.sin(this.heading), fz = Math.cos(this.heading);

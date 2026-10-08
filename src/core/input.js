@@ -92,6 +92,8 @@ export class InputManager {
     this.codesDown = new Set();
     this.codesPressed = new Set();
     this.codesReleased = new Set();
+    this.fixedPressed = new Map();   // Code → Zeitstempel; bleibt bis zum Verbrauch im Physikschritt
+    this.padFixed = new Set();
     this.mouseDX = 0;
     this.mouseDY = 0;
     this.mouseX = 0;
@@ -116,7 +118,7 @@ export class InputManager {
       if (this.onAnyKey) { e.preventDefault(); this.onAnyKey(e.code); return; }
       if (['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'F3'].includes(e.code)) e.preventDefault();
       if (e.ctrlKey && e.code === 'KeyW') e.preventDefault();
-      if (!this.codesDown.has(e.code)) this.codesPressed.add(e.code);
+      if (!this.codesDown.has(e.code)) { this.codesPressed.add(e.code); this.fixedPressed.set(e.code, performance.now()); }
       this.codesDown.add(e.code);
     });
     target.addEventListener('keyup', (e) => {
@@ -130,6 +132,7 @@ export class InputManager {
       if (this.onAnyKey) { this.onAnyKey(code); return; }
       this.codesDown.add(code);
       this.codesPressed.add(code);
+      this.fixedPressed.set(code, performance.now());
     });
     target.addEventListener('mouseup', (e) => {
       const code = 'Mouse' + e.button;
@@ -202,7 +205,7 @@ export class InputManager {
       this.padAxes = [0, 0, 0, 0];
       this.padTriggers = [0, 0];
     }
-    for (const a of now) if (!this.padPrev.has(a)) this.padPressed.add(a);
+    for (const a of now) if (!this.padPrev.has(a)) { this.padPressed.add(a); this.padFixed.add(a); }
     this.padDown = now;
     this.padPrev = now;
   }
@@ -221,6 +224,16 @@ export class InputManager {
     const codes = this.actionCodes.get(action);
     if (codes) for (const c of codes) if (this.codesPressed.has(c)) return true;
     return this.padPressed.has(action);
+  }
+
+  /** Wie pressed(), verbraucht den Tastendruck aber (sicher im festen Physiktakt, der mehrfach pro Frame laufen kann). */
+  consume(action) {
+    if (!this.enabled) return false;
+    const codes = this.actionCodes.get(action) || [];
+    let hit = false;
+    for (const c of codes) if (this.fixedPressed.has(c)) { hit = true; this.fixedPressed.delete(c); this.codesPressed.delete(c); }
+    if (this.padPressed.has(action) || this.padFixed.has(action)) { hit = true; this.padPressed.delete(action); this.padFixed.delete(action); }
+    return hit;
   }
 
   /** Taste gedrückt – auch wenn das Spiel pausiert ist (für Menüs). */
@@ -276,7 +289,13 @@ export class InputManager {
   endFrame() {
     this.codesPressed.clear();
     this.codesReleased.clear();
+    const now = performance.now();
+    for (const [c, t] of this.fixedPressed) if (now - t > 250) this.fixedPressed.delete(c);
+    if (this.padFixed.size && !this.padDown.size) this.padFixed.clear();
   }
+
+  /** Für Tests: Tastendruck simulieren. */
+  tap(code) { this.codesPressed.add(code); this.fixedPressed.set(code, performance.now()); }
 
   labelFor(action) {
     const codes = this.bindings[action] || [];

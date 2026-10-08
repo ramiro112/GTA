@@ -186,6 +186,19 @@ export class HUD {
       e.fps.textContent = `${g.loop.fps.toFixed(0)} FPS · ${g.loop.frameMs.toFixed(1)} ms · ${info.calls} Draw Calls · ${(info.triangles / 1000).toFixed(0)}k Dreiecke · x ${p.pos.x.toFixed(0)} z ${p.pos.z.toFixed(0)} y ${p.pos.y.toFixed(1)}`;
     }
     this._updateBubbles();
+    // Tacho (Bodenfahrzeuge und Boote)
+    const veh = p.vehicle;
+    if (veh && !veh.isAircraft) {
+      e.speedo.classList.remove('hidden');
+      e.speedo.querySelector('.v').textContent = Math.round(Math.abs(veh.speed || 0) * 3.6);
+      const fuel = veh.fuel !== undefined ? Math.round(veh.fuel / 60 * 100) : 100;
+      const extra = [];
+      if (veh.tuning && veh.tuning.engine) extra.push(`Motor ${veh.tuning.engine}`);
+      if (veh.wheels && veh.wheels.some((w) => w.burst)) extra.push('<span style="color:#ff6b6b">Reifen platt</span>');
+      if (fuel < 15) extra.push('<span style="color:#ff6b6b">Tank fast leer</span>');
+      e.speedo.querySelector('.sub').innerHTML = `${t('hud.fuel')} ${fuel}%${extra.length ? ' · ' + extra.join(' · ') : ''}`;
+      e.speedo.querySelector('.vhealth > div').style.width = `${Math.max(0, veh.health / veh.maxHealth * 100)}%`;
+    } else e.speedo.classList.add('hidden');
     // Minimap
     const cam = g.camera3p;
     const rot = cam.yaw - Math.PI;
