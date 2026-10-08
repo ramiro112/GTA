@@ -52,6 +52,13 @@ export class HUD {
       stamina: document.querySelector('#minimap-wrap .bar.stamina > div'),
     };
     this.mmCtx = this.el.minimap.getContext('2d');
+    this.bubbles = [];
+    for (let i = 0; i < 6; i++) {
+      const b = document.createElement('div');
+      b.className = 'bubble hidden';
+      this.el.hud.appendChild(b);
+      this.bubbles.push(b);
+    }
     this.lastArea = null;
     this.areaTimer = 0;
     this.centerTimer = 0;
@@ -178,6 +185,7 @@ export class HUD {
       const info = g.renderer.info.render;
       e.fps.textContent = `${g.loop.fps.toFixed(0)} FPS · ${g.loop.frameMs.toFixed(1)} ms · ${info.calls} Draw Calls · ${(info.triangles / 1000).toFixed(0)}k Dreiecke · x ${p.pos.x.toFixed(0)} z ${p.pos.z.toFixed(0)} y ${p.pos.y.toFixed(1)}`;
     }
+    this._updateBubbles();
     // Minimap
     const cam = g.camera3p;
     const rot = cam.yaw - Math.PI;
@@ -185,6 +193,34 @@ export class HUD {
     const speed = p.vehicle ? Math.abs(p.vehicle.speed || 0) : 0;
     const zoom = speed > 25 ? 0.6 : speed > 12 ? 0.8 : 1;
     g.mapRenderer.drawMinimap(this.mmCtx, this._focus().x, this._focus().z, rot, g.blips ? g.blips() : [], zoom, g.route || null);
+  }
+
+  /** Sprechblasen über NPC-Köpfen. */
+  _updateBubbles() {
+    const g = this.game;
+    const cam = g.camera;
+    const list = [];
+    if (g.population) for (const c of g.population.characters) {
+      if (c.speechTimer > 0 && c.speech && !c.dead) {
+        const d = c.pos.distanceTo(cam.position);
+        if (d < 35) list.push([d, c]);
+      }
+    }
+    list.sort((a, b) => a[0] - b[0]);
+    const v = this._v || (this._v = new (cam.position.constructor)());
+    for (let i = 0; i < this.bubbles.length; i++) {
+      const b = this.bubbles[i];
+      const e = list[i];
+      if (!e) { b.classList.add('hidden'); continue; }
+      const c = e[1];
+      v.copy(c.vehicle ? c.model.root.position : c.pos); v.y += 2.2;
+      v.project(cam);
+      if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) { b.classList.add('hidden'); continue; }
+      b.classList.remove('hidden');
+      if (b.textContent !== c.speech) b.textContent = c.speech;
+      b.style.left = `${(v.x * 0.5 + 0.5) * window.innerWidth}px`;
+      b.style.top = `${(-v.y * 0.5 + 0.5) * window.innerHeight}px`;
+    }
   }
 
   _heading() { const p = this.game.player; return p.vehicle ? p.vehicle.heading : p.heading; }

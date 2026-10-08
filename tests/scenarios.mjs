@@ -265,3 +265,62 @@ scen.dbg2 = async ({ page }) => {
   await page.click('[data-a=new]');
   console.log(await page.evaluate(() => { const g = window.game; g.simulate(0.2); return JSON.stringify({ armor: g.player.armor, w: document.querySelector('#minimap-wrap .bar.armor > div').style.width, h: document.querySelector('#minimap-wrap .bar.health > div').style.width }); }));
 };
+
+scen.ai = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const r = await page.evaluate(() => {
+    const g = window.game, out = [];
+    g.player.teleport(150, null, -190, Math.PI); g.camera3p.yaw = Math.PI;
+    g.simulate(6);
+    const peds = g.peds.peds.length, cars = g.traffic.cars.length;
+    out.push(`Ped-Graph ${g.peds.graph.length} Knoten · Passanten ${peds} · Verkehr ${cars} (Ziel ${g.traffic.targetCount()})`);
+    // Verkehr bewegt sich?
+    const moving = g.traffic.cars.filter((v) => Math.abs(v.speed) > 2).length;
+    g.simulate(10);
+    const moving2 = g.traffic.cars.filter((v) => Math.abs(v.speed) > 2).length;
+    const stuck = g.traffic.cars.filter((v) => v.ai && v.ai.blocked > 4).length;
+    const flipped = g.traffic.cars.filter((v) => v.up && v.up.y < 0.5).length;
+    out.push(`Fahrende Autos: ${moving} → ${moving2}, feststeckend ${stuck}, umgekippt ${flipped}`);
+    const walking = g.peds.peds.filter((n) => Math.hypot(n.vel.x, n.vel.z) > 0.5).length;
+    const states = {}; for (const n of g.peds.peds) states[n.brain.state] = (states[n.brain.state] || 0) + 1;
+    out.push(`Gehende Passanten: ${walking}, Zustände ${JSON.stringify(states)}`);
+    // Schuss in die Luft → Panik
+    g.events.emit('weapon:fired', { pos: g.player.pos.clone(), shooter: g.player });
+    g.simulate(0.5);
+    const st2 = {}; for (const n of g.peds.peds) st2[n.brain.state] = (st2[n.brain.state] || 0) + 1;
+    out.push('Nach Schuss: ' + JSON.stringify(st2));
+    return out;
+  });
+  console.log(r.join('\n'));
+  await page.evaluate(() => { const g = window.game; g.camera3p.pitch = 0.25; g.simulate(0.2); });
+  await shot('01_city_life');
+  const r2 = await page.evaluate(() => {
+    const g = window.game, out = [];
+    // Bandengebiet
+    g.player.teleport(560, null, -60, 0); g.simulate(3);
+    const grp = g.gangs.groups.map((x) => `${x.gang}:${x.members.length}`);
+    out.push('Bandengruppen: ' + grp.join(', '));
+    const target = g.gangs.groups[0];
+    if (target) {
+      const m = target.members[0];
+      g.player.teleport(m.pos.x + 12, null, m.pos.z, 0);
+      g.player.health = 1e9;
+      g.simulate(9);
+      out.push(`Gruppe provoziert: ${target.provoked}, Spieler-HP-Verlust: ${(1e9 - g.player.health).toFixed(0)}, Verstärkungen: ${target.reinforcements}`);
+      g.player.health = 100;
+    }
+    // Fahrer aus Auto ziehen
+    const car = g.traffic.cars.find((v) => v.driver && !v.driver.isPlayer);
+    if (car) {
+      g.player.teleport(car.pos.x + 3, null, car.pos.z);
+      car.vel.set(0, 0, 0); car.ai.mode = 'direct'; car.ai.goal = car.pos.clone();
+      g.vehicles.beginEnter(car);
+      g.simulate(2.5);
+      const ex = g.population.characters.filter((c) => c.lastJacked);
+      out.push(`Auto entführt: Spieler im Auto ${g.player.vehicle === car}, Fahrer-Brain ${g.population.characters.find((c) => c.vehicle === null && c.brain && c.brain.constructor.name !== 'PedBrain' && c.hostile) ? 'kämpft' : 'flieht/anders'}`);
+    }
+    return out;
+  });
+  console.log(r2.join('\n'));
+  await shot('02_gang');
+};

@@ -72,6 +72,26 @@ export class NPC {
 
   get alive() { return !this.dead; }
 
+  /** Für den Objekt-Pool: Figur mit neuem Aussehen an neuer Stelle wiederverwenden. */
+  reinit({ kind = 'ped', x = 0, z = 0, look = null }) {
+    this.kind = kind;
+    this.pos.set(x, this.game.collision.groundHeight(x, z, Math.max(0, groundTerrain(x, z)) + 1, 0.5).h, z);
+    this.prevPos.copy(this.pos);
+    this.vel.set(0, 0, 0);
+    this.dead = false; this.deadTime = 0;
+    this.health = this.maxHealth = CONFIG.ai.pedHealth;
+    this.armor = 0;
+    this.brain = null; this.forcedAnim = null; this.lookAt = null; this.aiming = false; this.crouch = false;
+    this.hostile = false; this.stagger = 0; this.knock = null; this.speech = null; this.speechTimer = 0;
+    this.vehicle = null; this.moveTarget = null; this.lastAttacker = null; this.removed = false;
+    this.inventory = new WeaponInventory();
+    this.model.setWeapon(null);
+    this.model.fallAngle = 0;
+    this.model.body.rotation.set(0, 0, 0);
+    this.model.root.visible = true;
+    if (look) { this.model.setShirt(look.shirt); this.model.setPants(look.pants); this.model.setHair(look.hair); this.model.look.scale = look.scale || 1; }
+  }
+
   _updateWeaponModel() {
     const w = this.inventory.current;
     if (this.game.weapons && this.game.weapons.makeModel) this.model.setWeapon(w.id !== 'fist' ? this.game.weapons.makeModel(w.id) : null);
