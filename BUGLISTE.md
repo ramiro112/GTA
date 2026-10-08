@@ -46,6 +46,28 @@ Belege: `node tests/smoke.mjs aircraft` (50+ Prüfungen für alle vier Luftfahrz
 | 29 | Flugzeuge | Der **Propeller drehte ohne Pilot**, ein Flugzeug im Leerlauf mit Pilot war **stumm**. | Feste Leerlaufdrehzahl, Ton erst ab Schub > 2 %. | Leerlauf nur mit Pilot, Motorton im Leerlauf. | ✅ |
 | 30 | HUD | Die **Fluginstrumente verdeckten Geld und Fahndung** oben rechts. | 3-spaltiges Raster wuchs nach oben. | Kompaktes 4-spaltiges Raster unten rechts. | ✅ |
 
+## Teil 3: Startausrüstung
+Beim Einbau keine neuen Fehler gefunden. Geprüft per `npm run smoke -- startkit` und 2 Unit-Tests:
+- Startwaffen und Munition laut Config
+- HUD je Waffe (Zifferntasten) und Waffenrad (5 Waffen mit Munition)
+- Speichern/Laden der Startausrüstung
+- Alter Spielstand (1500 $, nur Pistole) bleibt unverändert
+- Neues Spiel nach dem Laden setzt alles wieder auf die Startwerte
+
+Gefunden und verbessert: Die Fahrwerksanzeige „EIN/AUS“ war missverständlich, sie zeigt jetzt „Eingef./Ausgef.“
+
+## Abschluss-Durchlauf (21:32)
+`npm run final` startet die gebaute Einzeldatei `dist/PortAurelia.html` per `file://` neu und spielt mit echten
+Tastatur- und Mausereignissen durch: neues Spiel (6000 $, 5 Waffen, HUD, Waffenrad, Pistolenschuss) → Auto
+(einsteigen, 109 m fahren, aussteigen) → Helikopter am Heliport (steigen, vorwärts, drehen, Cockpit, landen mit
+100 % Zustand, aussteigen) → Flugzeug an der Strandpiste (Start, 207 km/h, Fahrwerk ein, Absprung, Fallschirm,
+Landung) → Speichern am Bett → **Seite neu laden** → Laden: Geld, Gesundheit, Position und Waffen identisch.
+Ergebnis: **19/19 Prüfungen bestanden, keine Konsolenfehler und keine Warnungen.**
+
+### Zusammenfassung
+- 30 Fehler gefunden, **28 behoben**, 2 offen (Nr. 15 Gamepad-Drive-by, Nr. 16 kein Test auf echter Hardware).
+- Testabdeckung: 37 Unit-Tests und 16 Browser-Szenarien (`sh tests/run_all.sh`), dazu der Abschluss-Durchlauf. Alles grün.
+
 ### Geprüft ohne Befund
 Laden ohne Konsolenfehler **und ohne Warnungen**. Laufen und Springen. Kamera an Hauswänden (nicht in der Wand).
 Ein- und Aussteigen per Tastenablauf, Fahren. 25 s Vollgas mit Lenkwechseln (kein Abheben, nicht umgekippt).

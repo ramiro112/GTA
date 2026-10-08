@@ -51,6 +51,7 @@ npm run smoke -- basic   # Browser-Szenario (Playwright/Chromium), siehe tests/s
 npm run smoke -- bugcheck   # harter Bug-Check (Fahren, Waffen, Respawn, Speichern, Speicherlecks, Menüs)
 npm run smoke -- aircraft   # alle vier Luftfahrzeuge: starten, fliegen, landen, Absturz, Fallschirm
 npm run smoke -- startkit   # Startwaffen, Startgeld, HUD/Waffenrad, Speichern/Laden, alter Spielstand
+npm run final      # Abschluss-Durchlauf mit dist/PortAurelia.html (file://, echte Tasten): Start → Auto → Heli → Flugzeug → Speichern → Neustart → Laden
 sh tests/run_all.sh      # alle Unit-Tests + Browser-Szenarien
 ```
 URL-Parameter: `?quality=low|medium|high` erzwingt eine Grafikstufe.

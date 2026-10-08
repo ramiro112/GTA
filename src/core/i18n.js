@@ -17,7 +17,7 @@ const STRINGS = {
     'hud.interact': '{key} – {what}', 'hud.hotwire': 'Kurzschliessen …', 'hud.wasted': 'SCHWER VERLETZT', 'hud.busted': 'VERHAFTET',
     'hud.missionPassed': 'MISSION ERFÜLLT', 'hud.missionFailed': 'MISSION GESCHEITERT', 'hud.reward': 'Belohnung: {money}',
     'hud.saved': 'Spiel gespeichert', 'hud.fuel': 'Tank', 'hud.alt': 'Höhe', 'hud.spd': 'Tempo', 'hud.vs': 'Steigen', 'hud.hdg': 'Kompass', 'hud.att': 'Nick / Roll', 'hud.cond': 'Zustand', 'hud.refuel': 'Tanken …', 'hud.cockpit': 'Cockpit',
-    'hud.gear': 'Fahrwerk', 'hud.flaps': 'Klappen', 'hud.throttle': 'Schub', 'hud.up': 'EIN', 'hud.down': 'AUS', 'hud.reload': 'Nachladen …',
+    'hud.gear': 'Fahrwerk', 'hud.flaps': 'Klappen', 'hud.throttle': 'Schub', 'hud.up': 'Eingef.', 'hud.down': 'Ausgef.', 'hud.reload': 'Nachladen …',
     'hud.restartCheckpoint': '{key} – Vom Checkpoint neu starten', 'hud.stuntJump': 'STUNT-SPRUNG!', 'hud.newArea': '{name}',
     'hud.noMoney': 'Nicht genug Geld', 'hud.bought': 'Gekauft: {item}', 'hud.alarm': 'Autoalarm!', 'hud.locked': 'Abgeschlossen – Scheibe eingeschlagen',
     'phone.title': 'Handy', 'phone.contacts': 'Kontakte', 'phone.missions': 'Missionen', 'phone.taxi': 'Taxi rufen', 'phone.fasttravel': 'Schnellreise',
