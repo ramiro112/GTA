@@ -216,7 +216,14 @@ export class TrafficSystem {
     if (d > 60 && ai.replan <= 0) {
       ai.replan = 3;
       const g = this.game.roads;
-      const a = g.nearestNode(v.pos.x, v.pos.z), b = g.nearestNode(tp.x, tp.z);
+      // Start an der nächsten Strassenkante (nicht am nächsten Knoten – der kann z. B. hinter einem Berg liegen)
+      const ep = g.nearestEdgePoint(v.pos.x, v.pos.z);
+      const na = g.nodes[ep.edge.a], nb = g.nodes[ep.edge.b];
+      const score = (n) => Math.hypot(n.x - v.pos.x, n.z - v.pos.z) + Math.hypot(n.x - tp.x, n.z - tp.z);
+      const a = score(na) <= score(nb) ? na : nb;
+      const eg = g.nearestEdgePoint(tp.x, tp.z);
+      const ga = g.nodes[eg.edge.a], gb = g.nodes[eg.edge.b];
+      const b = Math.hypot(ga.x - tp.x, ga.z - tp.z) <= Math.hypot(gb.x - tp.x, gb.z - tp.z) ? ga : gb;
       const path = g.findPath(a.id, b.id);
       ai.wps = path ? [{ x: a.x, z: a.z }, ...path.map((s) => ({ x: s.node.x, z: s.node.z }))] : null;
       // Startknoten überspringen, wenn er hinter uns liegt

@@ -121,7 +121,7 @@ export function terrainHeight(x, z) {
 /** Liegt (x,z) im Tunnelkorridor? */
 export function inTunnel(x, z) {
   const t = W.tunnel;
-  return x > t.x0 - 2 && x < t.x1 + 2 && Math.abs(z - t.z) < t.halfWidth;
+  return x > t.x0 - 2 && x < t.x1 + 2 && Math.abs(z - t.z) < t.halfWidth + 2;
 }
 
 /** Bodenhöhe des Terrains für Physik – im Tunnel unter der Decke ist der Boden 0. */

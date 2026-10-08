@@ -194,7 +194,8 @@ export class Vehicle {
         let gh = gq.h;
         if (w.burst) gh -= 0.12;
         const dist = (hp.y - gh) / up.y;
-        if (dist < L) {
+        // Boden deutlich über dem Rad = Wand/Hang, kein Radkontakt (verhindert Katapulte)
+        if (dist < L && dist > -1.2) {
           w.contact = true;
           this.wheelsOnGround++;
           const compression = Math.min(L - dist, this.restLen + 0.1);
@@ -263,8 +264,8 @@ export class Vehicle {
     for (const cl of corners) {
       const p = cl.clone().applyQuaternion(this.quat).add(this.pos);
       const gh = col.groundHeight(p.x, p.z, p.y + 0.3, 0.3).h;
-      if (p.y < gh) {
-        const pen = gh - p.y;
+      if (p.y < gh && gh - p.y < 1.5) {
+        const pen = Math.min(0.5, gh - p.y);
         const rel = p.clone().sub(this.pos);
         const pv = new THREE.Vector3().crossVectors(this.angVel, rel).add(this.vel);
         const fn = Math.max(0, pen * m * 60 - pv.y * m * 4);

@@ -713,3 +713,92 @@ scen.playthrough = async ({ page }) => {
   });
   console.log(res.join('\n'));
 };
+
+scen.stress = async ({ page }) => {
+  await page.click('[data-a=new]');
+  const r = await page.evaluate(() => {
+    const g = window.game, out = [], pl = g.player;
+    g.godMode = true;
+    pl.teleport(150, null, -190);
+    g.simulate(5);
+    const offRoad = (v) => { const e = g.roads.nearestEdgePoint(v.pos.x, v.pos.z); return e ? e.d : 99; };
+    const samples = { cars: 0, stuck: 0, flipped: 0, off: 0, peds: 0, pedStuck: 0, pedWater: 0 };
+    for (let k = 0; k < 12; k++) {
+      g.simulate(5);
+      for (const v of g.traffic.cars) {
+        if (!v.ai || !v.driver || v.driver.isPlayer) continue;
+        samples.cars++;
+        if (v.ai.blocked > 4) samples.stuck++;
+        if (v.up.y < 0.5) samples.flipped++;
+        if (offRoad(v) > 10) samples.off++;
+      }
+      for (const n of g.peds.peds) {
+        if (n.dead) continue;
+        samples.peds++;
+        if ((n.blocked || 0) > 3) samples.pedStuck++;
+        if (n.swimming) samples.pedWater++;
+      }
+    }
+    out.push(`Verkehr (60 s, Stichproben): ${samples.cars} · feststeckend ${(samples.stuck / samples.cars * 100).toFixed(1)}% · umgekippt ${(samples.flipped / samples.cars * 100).toFixed(1)}% · abseits der Strasse ${(samples.off / samples.cars * 100).toFixed(1)}%`);
+    out.push(`Passanten: ${samples.peds} · feststeckend ${(samples.pedStuck / samples.peds * 100).toFixed(1)}% · im Wasser ${(samples.pedWater / samples.peds * 100).toFixed(1)}%`);
+    // Tunnel: Auto mit KI-Controller von West nach Ost
+    const v = g.vehicles.spawn('sedan', { x: -60, z: -537, heading: Math.PI / 2 });
+    const d = g.population.spawn({ kind: 'ped', x: -60, z: -537 }); d.vehicle = v; v.driver = d;
+    v.ai = { mode: 'direct', goal: v.pos.clone().set(260, 0, -537), maxSpeed: 15, arriveDist: 6 }; g.traffic.cars.push(v);
+    pl.teleport(-50, null, -520);
+    let maxY = 0;
+    for (let i = 0; i < 40 && !v.ai.arrived; i++) { g.simulate(0.5); maxY = Math.max(maxY, v.pos.y); }
+    out.push(`Tunnel: Ziel erreicht ${!!(v.ai && v.ai.arrived)}, x=${v.pos.x.toFixed(0)}, max. Höhe ${maxY.toFixed(1)} m (sollte < 3)`);
+    // Bergstrasse
+    const e = g.roads.edges.find((x) => x.kind === 'mountain');
+    const v2 = g.vehicles.spawn('suv', { x: e.points[3].x, z: e.points[3].z, heading: 0 });
+    const d2 = g.population.spawn({ kind: 'ped', x: v2.pos.x, z: v2.pos.z }); d2.vehicle = v2; v2.driver = d2;
+    g.traffic.initRoute(v2, e, true, 0.05);
+    pl.teleport(v2.pos.x + 20, null, v2.pos.z);
+    const y0 = v2.pos.y;
+    g.simulate(25);
+    out.push(`Bergstrasse: Höhe ${y0.toFixed(0)} → ${v2.pos.y.toFixed(0)} m, umgekippt ${v2.up.y < 0.5}, abseits ${offRoad(v2).toFixed(1)} m`);
+    // Brücke: Spieler fährt über die Brücke bei z=-60
+    const v3 = g.vehicles.spawn('compact', { x: -330, z: -58, heading: Math.PI / 2 });
+    pl.teleport(-332, null, -55); g.vehicles._seatPlayer(v3);
+    g.input.codesDown.add('KeyW'); g.simulate(9); g.input.codesDown.delete('KeyW');
+    out.push(`Brücke: x=${v3.pos.x.toFixed(0)} y=${v3.pos.y.toFixed(1)} (über dem Fluss erwartet x>-150, y>0)`);
+    return out;
+  });
+  console.log(r.join('\n'));
+};
+scen.tunnel = async ({ page }) => {
+  await page.click('[data-a=new]');
+  console.log(await page.evaluate(() => {
+    const g = window.game, pl = g.player, out = [];
+    g.godMode = true;
+    const v = g.vehicles.spawn('sedan', { x: -60, z: -537, heading: Math.PI / 2 });
+    pl.teleport(-62, null, -534); g.vehicles._seatPlayer(v);
+    g.input.codesDown.add('KeyW');
+    for (let i = 0; i < 60; i++) {
+      g.simulate(0.2);
+      out.push(`${(i * 0.2).toFixed(1)}s x=${v.pos.x.toFixed(1)} y=${v.pos.y.toFixed(2)} z=${v.pos.z.toFixed(1)} v=${v.vel.length().toFixed(1)} w=${v.wheelsOnGround} up=${v.up.y.toFixed(2)}`);
+      if (v.pos.y > 20) break;
+    }
+    return out.join('\n');
+  }));
+};
+scen.tunnel2 = async ({ page }) => {
+  await page.click('[data-a=new]');
+  console.log(await page.evaluate(() => {
+    const g = window.game, pl = g.player, out = [];
+    g.godMode = true;
+    pl.teleport(150, null, -190);
+    g.simulate(3);
+    const v = g.vehicles.spawn('sedan', { x: -60, z: -537, heading: Math.PI / 2 });
+    const d = g.population.spawn({ kind: 'ped', x: -60, z: -537 }); d.vehicle = v; v.driver = d;
+    v.ai = { mode: 'direct', goal: v.pos.clone().set(260, 0, -537), maxSpeed: 15, arriveDist: 6 }; g.traffic.cars.push(v);
+    pl.teleport(-50, null, -520);
+    for (let i = 0; i < 60; i++) {
+      g.simulate(0.25);
+      out.push(`${(i * 0.25).toFixed(2)}s x=${v.pos.x.toFixed(1)} y=${v.pos.y.toFixed(2)} z=${v.pos.z.toFixed(1)} v=${v.vel.length().toFixed(1)} w=${v.wheelsOnGround} up=${v.up.y.toFixed(2)} removed=${!!v.removed} sleep=${v.sleeping} wps=${v.ai && v.ai.wps ? v.ai.wps.length : '-'}`);
+      if (v.pos.y > 20) break;
+    }
+    return out.slice(-20).join('\n');
+  }));
+};
