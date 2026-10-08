@@ -1,12 +1,12 @@
 # Bekannte Fehler und offene Punkte
 
-Stand: 08.10.2026, Zwischenstand. Schweregrad: 🔴 hoch · 🟠 mittel · 🟢 niedrig
+Stand: 08.10.2026 (nach Bug-Check, Luftfahrzeugen und Startausrüstung). Die vollständige Liste der gefundenen und behobenen Fehler steht in **BUGLISTE.md**. Schweregrad: 🔴 hoch · 🟠 mittel · 🟢 niedrig
 
 ## Offen
 | # | Bereich | Beschreibung | Schwere |
 |---|---|---|---|
 | 1 | Test/Performance | **Auf echter Hardware nicht getestet.** Der Container hat keine GPU, Headless-Chromium rendert per Software mit 1–5 FPS. Echte FPS-Werte fehlen. Gemessen: ~2–3 ms Spiellogik pro Frame, ~400 Draw Calls, ~410k Dreiecke. Auf schwachen integrierten GPUs ist „Niedrig“ ratsam. | 🟠 |
-| 2 | Gamepad | Belegung eingebaut, aber ohne echten Controller getestet. Belegung im Menü nicht änderbar. | 🟠 |
+| 2 | Gamepad | Belegung ohne Doppelbelegungen je Situation (Unit-Test), aber ohne echten Controller getestet. Belegung im Menü nicht änderbar. Im Auto ist LT zugleich Bremse und Zielen (Drive-by), siehe BUGLISTE Nr. 15. | 🟠 |
 | 3 | Sprache | Englisch nur für Menüs, HUD, Tutorial und Missionsdialoge. Missionsziele, Ladeneinträge und viele Meldungen bleiben deutsch. | 🟠 |
 | 4 | Spielgefühl | Fahrphysik, Flugmodell, Kamera, Waffen-Rückstoss und Polizei-Aggressivität sind nur grob abgestimmt (Werte in `config.js`). | 🟠 |
 | 5 | KI-Verkehr | Kein Spurwechsel, kein Überholen. Blockierte Autos setzen zurück und werden notfalls ausserhalb der Sicht entfernt. | 🟢 |

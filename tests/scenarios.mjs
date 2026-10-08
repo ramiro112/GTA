@@ -1284,3 +1284,69 @@ scen.airshots = async ({ page, shot }) => {
   await run(() => { const g = window.game, pl = g.player; g.vehicles.exitVehicle(pl, true); g.gangs.guardsDisabled = true; const js = g.vehicles.parkingSpots.find((s) => s.aircraft && s.type === 'jet'); pl.teleport(js.x + 200, null, js.z); g.simulate(0.3); pl.teleport(js.x + 20, null, js.z - 16, -1); g.camera3p.yaw = Math.atan2(js.x + 4 - pl.pos.x, js.z + 4 - pl.pos.z); g.camera3p.pitch = 0.18; g.tod.hour = 12; g.simulate(1); });
   await shot('06_jet_military');
 };
+
+// ---------------------------------------------------------------------------------------------
+// Startausrüstung: neues Spiel → Waffen, Munition, Geld, HUD, Waffenrad, Speichern/Laden, alter Spielstand.
+scen.startkit = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const res = await page.evaluate(() => {
+    const g = window.game, pl = g.player, inp = g.input, C = window.__CONFIG || null, log = [];
+    const ok = (c, msg) => log.push((c ? 'OK   ' : 'FAIL ') + msg);
+    void C;
+    g.settings.tutorialDone = true; g.ui.tutStep = 99;
+    g.simulate(2);
+    const inv = pl.inventory;
+    const has = (id) => inv.has(id);
+    ok(has('fist') && has('bat') && has('pistol') && has('smg') && has('shotgun') && !has('rifle') && !has('rocket'), 'Neues Spiel: Faust, Schläger, Pistole, MP, Schrotflinte (Gewehr/Raketenwerfer nicht)');
+    const am = (id) => { const w = inv.slots.find((s) => s && s.id === id); return w ? `${w.mag}/${w.ammo}` : '-'; };
+    ok(am('pistol') === '12/60' && am('smg') === '30/60' && am('shotgun') === '6/12', `Startmunition: Pistole ${am('pistol')}, MP ${am('smg')}, Schrotflinte ${am('shotgun')}`);
+    ok(g.economy.money === 6000, `Startgeld ${g.economy.money} $`);
+    g.simulate(3);
+    ok(/6[.']?000/.test(g.hud.el.money.textContent), `HUD zeigt das Geld: "${g.hud.el.money.textContent}"`);
+    ok(inv.current.id === 'fist' && g.hud.el.weaponIcon.textContent === '✊', 'Start mit Faust in der Hand');
+    // HUD je Waffe (Zifferntasten)
+    const hudFor = [];
+    for (const [key, id] of [['Digit2', 'bat'], ['Digit3', 'pistol'], ['Digit4', 'smg'], ['Digit5', 'shotgun'], ['Digit1', 'fist']]) {
+      inp.tap(key); g.simulate(0.2);
+      const icon = g.hud.el.weaponIcon.textContent, ammo = g.hud.el.ammo.textContent.trim();
+      hudFor.push(`${id}:${icon}:${ammo || '–'}`);
+      const expAmmo = { pistol: '12 / 60', smg: '30 / 60', shotgun: '6 / 12' }[id] || '';
+      ok(inv.current.id === id && icon === inv.current.def.icon && ammo === expAmmo, `HUD ${id}: Symbol ${icon}, Munition "${ammo}"`);
+    }
+    // Waffenrad zeigt alle Startwaffen
+    inp.codesDown.add('Tab'); g.simulate(0.1);
+    const segs = [...document.querySelectorAll('#wheel .seg:not(.none)')].map((e) => e.textContent);
+    inp.codesDown.delete('Tab'); g.simulate(0.2);
+    const names = ['Faust', 'Baseballschläger', 'Pistole', 'Maschinenpistole', 'Schrotflinte'];
+    ok(segs.length === 5 && names.every((n) => segs.some((t) => t.includes(n))), `Waffenrad: ${segs.length} Waffen (${segs.map((t) => t.replace(/\s+/g, ' ').trim()).join(' | ')})`);
+    ok(segs.some((t) => t.includes('12/60')), 'Waffenrad zeigt die Munition');
+    // Im Waffenladen sofort etwas kaufbar (Sturmgewehr + Weste)
+    const before = g.economy.money;
+    const okRifle = g.economy.canAfford(g.shops ? 4500 : 0);
+    ok(okRifle && before - 4500 - 500 >= 0, 'Startgeld reicht für Sturmgewehr + Weste');
+    // Speichern/Laden mit Startausrüstung und neuem Geld
+    inp.tap('Digit4'); g.simulate(0.2);
+    pl.inventory.current.mag = 17;
+    g.saves.save('3');
+    pl.inventory.clear(); g.economy.money = 0;
+    g.saves.load('3'); g.simulate(0.3);
+    ok(g.economy.money === 6000 && pl.inventory.current.id === 'smg' && pl.inventory.current.mag === 17 && ['bat', 'pistol', 'shotgun'].every((id) => pl.inventory.has(id)), `Speichern/Laden: Geld ${g.economy.money}, Waffe ${pl.inventory.current.id} (${pl.inventory.current.mag})`);
+    // Alter Spielstand (Vorversion: 1500 $, nur Pistole) bleibt unverändert
+    const oldSave = { version: 1, player: { pos: { x: 64, y: 0.12, z: 70 }, heading: 0, health: 90, armor: 0, look: null, weapons: { current: 2, slots: [{ id: 'fist', mag: 0, ammo: 0 }, null, { id: 'pistol', mag: 4, ammo: 20 }, null, null, null, null, null, null] } }, economy: { money: 1500, ownedProperties: ['home'], ownedVehicles: [], garageSlots: 4 }, missions: { completed: ['heimkehr'], stats: {} }, meta: { date: 'alt', money: 1500, missions: 1, place: 'Altmarkt' }, savedAt: 1 };
+    g.storage.setItem('portAurelia.save.2', JSON.stringify(oldSave));
+    g.saves.load('2'); g.simulate(0.3);
+    ok(g.economy.money === 1500 && pl.inventory.has('pistol') && !pl.inventory.has('smg') && !pl.inventory.has('bat') && pl.inventory.current.mag === 4 && g.missions.engine.completed.has('heimkehr'), `Alter Spielstand: Geld ${g.economy.money}, Waffen ${pl.inventory.slots.filter(Boolean).map((w) => w.id).join(',')}`);
+    g.saves.remove('2'); g.saves.remove('3');
+    // Neues Spiel nach geladenem Spielstand: wieder volle Startausrüstung
+    g.newGame(); g.simulate(0.3);
+    ok(g.economy.money === 6000 && pl.inventory.has('shotgun') && !g.missions.engine.completed.has('heimkehr'), 'Neues Spiel nach Laden: wieder Startausrüstung und Startgeld');
+    return log;
+  });
+  console.log(res.join('\n'));
+  await page.evaluate(() => { const g = window.game; g.input.tap('Digit3'); g.simulate(0.3); g.input.codesDown.add('Tab'); g.simulate(0.1); });
+  await shot('01_wheel');
+  await page.evaluate(() => { const g = window.game; g.input.codesDown.delete('Tab'); g.simulate(0.2); });
+  await shot('02_hud_pistol');
+  const fails = res.filter((l) => l.startsWith('FAIL'));
+  if (fails.length) throw new Error(fails.length + ' Prüfungen fehlgeschlagen');
+};

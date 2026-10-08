@@ -1,6 +1,7 @@
 // Spielstand-Format (rein, testbar): Zustand → JSON und zurück. Version für spätere Migrationen.
 
 import { CONFIG } from '../config.js';
+import { startInventory } from '../weapons/weapondata.js';
 
 export const SAVE_VERSION = 1;
 
@@ -8,7 +9,8 @@ export const SAVE_VERSION = 1;
 export function defaultState() {
   return {
     version: SAVE_VERSION,
-    player: { pos: { x: 64, y: 0.12, z: 70 }, heading: Math.PI, health: 100, armor: 0, look: null, weapons: null },
+    // Neue Spiele starten mit der Startausrüstung aus config.js (alte Spielstände bringen ihr eigenes Inventar mit)
+    player: { pos: { x: 64, y: 0.12, z: 70 }, heading: Math.PI, health: 100, armor: 0, look: null, weapons: startInventory().toJSON() },
     economy: { money: CONFIG.player.startMoney, ownedProperties: ['home'], ownedVehicles: [], garageSlots: 4 },
     inventory: { medkit: 1, snack: 2 },
     missions: { completed: [], stats: {} },

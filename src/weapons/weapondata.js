@@ -32,6 +32,21 @@ export function computeDamage(def, zone = 'body', distance = 0) {
   return def.damage * zoneMul * falloff;
 }
 
+/**
+ * Startausrüstung eines neuen Spiels laut CONFIG.player.startWeapons/startWeapon.
+ * Unbekannte Waffen in der Konfiguration werden übersprungen (mit Warnung), statt das Spiel zu blockieren.
+ */
+export function startInventory() {
+  const inv = new WeaponInventory();
+  for (const [id, ammo] of CONFIG.player.startWeapons || []) {
+    if (!CONFIG.weapons[id] || !WEAPON_META[id] || id === 'fist') { if (id !== 'fist') console.warn('Unbekannte Startwaffe in config.js:', id); continue; }
+    inv.give(id, Math.max(0, Math.floor(ammo || 0)));
+  }
+  const sel = CONFIG.player.startWeapon;
+  if (sel && CONFIG.weapons[sel]) inv.select(CONFIG.weapons[sel].slot);
+  return inv;
+}
+
 /** Waffeninventar einer Figur. */
 export class WeaponInventory {
   constructor() {

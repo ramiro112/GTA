@@ -106,3 +106,40 @@ test('Missionen: eindeutige IDs, Voraussetzungen existieren, Belohnungswaffen si
   for (let round = 0; round < ids.length + 1; round++) for (const id of ids) if ((req[id] || []).every((r) => done.has(r))) done.add(id);
   assert.equal(done.size, ids.length, 'alle Missionen erreichbar');
 });
+
+test('Neues Spiel: Startwaffen, Startmunition und Startgeld kommen aus der Konfiguration', () => {
+  const s = defaultState();
+  assert.equal(s.economy.money, CONFIG.player.startMoney);
+  assert.ok(CONFIG.player.startMoney >= 4 * 1500, 'mindestens 4 × das frühere Startgeld');
+  // genug für einen Einkauf im Waffenladen, aber nicht für alles
+  assert.ok(CONFIG.player.startMoney >= CONFIG.weapons.rifle.price + CONFIG.economy.shops.armor.price);
+  assert.ok(CONFIG.player.startMoney < CONFIG.weapons.sniper.price && CONFIG.player.startMoney < CONFIG.weapons.rocket.price);
+  const inv = WeaponInventory.fromJSON(s.player.weapons);
+  assert.ok(inv.has('fist'), 'Faust');
+  assert.ok(inv.has('bat') || inv.has('knife'), 'Messer oder Schläger');
+  for (const id of ['pistol', 'smg', 'shotgun']) assert.ok(inv.has(id), id);
+  for (const id of ['rifle', 'sniper', 'grenade', 'rocket']) assert.ok(!inv.has(id), id + ' bleibt im Laden');
+  for (const [id, ammo] of CONFIG.player.startWeapons) {
+    const w = inv.slots[CONFIG.weapons[id].slot];
+    assert.equal(w.mag + w.ammo, ammo, `${id}: Munition gesamt laut Config`);
+    if (CONFIG.weapons[id].mag) assert.equal(w.mag, Math.min(CONFIG.weapons[id].mag, ammo), `${id}: Magazin voll`);
+  }
+  assert.ok(inv.slots[CONFIG.weapons.pistol.slot].mag + inv.slots[CONFIG.weapons.pistol.slot].ammo >= 48, 'Pistole: genug für den Anfang');
+  assert.equal(inv.current.id, CONFIG.player.startWeapon);
+});
+
+test('Alte Spielstände behalten Geld und Waffen (Startwerte gelten nur für neue Spiele)', () => {
+  // Spielstand im Format der Vorversion: 1500 $, nur Faust und Pistole
+  const old = { version: 1, player: { pos: { x: 10, y: 0, z: 20 }, heading: 0, health: 80, armor: 0, look: null, weapons: { current: 2, slots: [{ id: 'fist', mag: 0, ammo: 0 }, null, { id: 'pistol', mag: 5, ammo: 12 }, null, null, null, null, null, null] } }, economy: { money: 1500, ownedProperties: ['home'], ownedVehicles: [], garageSlots: 4 } };
+  const s = decode(JSON.stringify(old));
+  assert.equal(s.economy.money, 1500);
+  const inv = WeaponInventory.fromJSON(s.player.weapons);
+  assert.ok(inv.has('pistol') && !inv.has('smg') && !inv.has('shotgun') && !inv.has('bat'));
+  assert.equal(inv.current.id, 'pistol');
+  assert.equal(inv.current.mag, 5);
+  // Rundreise mit der neuen Startausrüstung
+  const fresh = defaultState();
+  const back = decode(encode(fresh));
+  assert.deepEqual(back.player.weapons, fresh.player.weapons);
+  assert.equal(back.economy.money, CONFIG.player.startMoney);
+});

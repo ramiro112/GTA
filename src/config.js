@@ -73,7 +73,18 @@ export const CONFIG = {
     fallDamagePerMs: 9,       // Schaden pro m/s über Schwelle
     respawnHospitalFee: 500,
     bustFeePercent: 0.1,
-    startMoney: 1500,
+    // Startwerte für NEUE Spielstände (bestehende Spielstände behalten ihre Werte).
+    // 6000 $ = 4 × der frühere Wert 1500 $: reicht sofort für Sturmgewehr (4500) + Weste (500) oder Munition,
+    // aber nicht für Scharfschützengewehr (9000), Raketenwerfer (15000), Autos oder Immobilien.
+    startMoney: 6000,
+    // Startwaffen: [Waffe, Munition gesamt (inkl. Magazin)]. Faust ist immer vorhanden.
+    startWeapons: [
+      ['bat', 0],        // Baseballschläger (Nahkampf; Messer bleibt im Laden kaufbar)
+      ['pistol', 72],    // 6 Magazine
+      ['smg', 90],       // 3 Magazine
+      ['shotgun', 18],   // 3 Ladungen
+    ],
+    startWeapon: 'fist', // zu Beginn in der Hand (unbewaffnet, um nicht sofort aufzufallen)
     enterVehicleDistance: 3.2,
   },
 

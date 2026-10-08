@@ -10,6 +10,7 @@ import { WantedLevel } from '../police/wanted.js';
 import { districtAt, WATER_Y } from '../world/terrain.js';
 import { tr, t } from '../core/i18n.js';
 import { events } from '../core/events.js';
+import { formatMoney } from '../core/mathutil.js';
 
 const KEY = CONFIG.save.key;
 
@@ -105,6 +106,10 @@ export class SaveSystem {
     if (s.stats) Object.assign(g.stats, s.stats); else for (const k of Object.keys(g.stats)) g.stats[k] = 0;
     g.unlocks = { ...(s.unlocks || {}) };
     g.hud._displayMoney = g.economy.money;
+    if (fresh) {
+      const names = pl.inventory.slots.filter((w) => w && w.id !== 'fist').map((w) => tr(w.def.name));
+      if (names.length) g.hud.notify(`Startausrüstung: ${names.join(', ')} · ${formatMoney(g.economy.money)} – Waffenrad: ${g.input.labelFor('weaponWheel')} halten`, 7000);
+    }
     events.emit('game:loaded', { fresh });
     void THREE;
   }

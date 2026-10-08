@@ -83,6 +83,7 @@ PORT AURELIA
 │   ├── [x] Über-die-Schulter-Zielmodus
 │   ├── [x] Fahrzeugkamera (Verfolger), Ego-Perspektive im Fahrzeug
 │   ├── [x] Flugkamera (weiter weg, folgt Rollachse leicht)
+│   ├── [x] Cockpit-Ansicht in Luftfahrzeugen (V, Umschauen mit der Maus)
 │   └── [x] Zoom beim Scharfschützengewehr
 │
 ├── 5. Fahrzeuge am Boden (M2)
@@ -129,12 +130,16 @@ PORT AURELIA
 │   ├── [x] HUD-Instrumente: Höhe, Tempo, Neigung, Treibstoff, Kompass, Steigrate
 │   ├── [x] Absturz → Explosion → Tod
 │   ├── [x] Fallschirm
-│   ├── [x] Stehlbar (Flughafen, Militär mit Wachen)
+│   ├── [x] Stehlbar (Flughafen, Militär mit Wachen) – Diebstahl meldet die Flugsicherung
+│   ├── [x] Frei nutzbar nahe am Start: Heliport Flusspark (Heli), Strandpiste (Flugzeug)
+│   ├── [x] Landehilfen (Arcade), Auftanken auf Landeplätzen, weicher Luftraum-Rand
+│   ├── [x] Alle Flugwerte in config.js (Tempo, Schub, Wendigkeit, Lebenspunkte, Tank)
 │   └── [x] Bordwaffen: MG + Raketen
 │
 ├── 7. Waffen und Kampf (M3)
 │   ├── [x] Waffenrad + Hotkeys 1–0 + Mausrad
 │   ├── [x] Faust, Messer, Baseballschläger
+│   ├── [x] Startausrüstung neuer Spiele: Faust, Schläger, Pistole, MP, Schrotflinte (config.js)
 │   ├── [x] Pistole, MP, Schrotflinte, Sturmgewehr, Scharfschützengewehr
 │   ├── [x] Granaten, Raketenwerfer
 │   ├── [x] Munition, Nachladen, Magazin, Rückstoss, Streuung, Reichweite
@@ -198,6 +203,7 @@ PORT AURELIA
 │   ├── [x] Waffenladen  ├── [x] Kleidung  ├── [x] Autohändler
 │   ├── [x] Tankstelle   ├── [x] Restaurant ├── [x] Frisör  ├── [x] Tuning
 │   ├── [x] Immobilien: Unterschlupf kaufen (Speichern, Parken)
+│   ├── [x] Startgeld 6000 $ für neue Spiele (config.js)
 │   ├── [x] Inventar: Waffen, Munition, Medikits, Westen, Gegenstände
 │   └── [x] Preise in config.js
 │
@@ -232,6 +238,7 @@ PORT AURELIA
 │   ├── [x] Autosave an Missions-Checkpoints
 │   ├── [x] Manuelles Speichern in Unterkünften
 │   ├── [x] Daten: Position, Geld, Waffen, Munition, Garage, Missionen, Fahndung, Zeit, Einstellungen
+│   ├── [x] Robust gegen alte/kaputte Daten (unbekannte Waffen, ungültige Zahlen)
 │   └── [x] Versionierung + Tests
 │
 ├── 16. Physik und Weltinteraktion (M2–M4)
@@ -247,13 +254,15 @@ PORT AURELIA
 │   ├── [x] Spatial Hash für Kollisionen
 │   ├── [x] KI-Despawn/Respawn um den Spieler (Pooling)
 │   ├── [x] Sichtweite/Schatten/Pixelratio je Qualitätsstufe
+│   ├── [x] Speicherfreigabe entfernter Fahrzeuge/Marker, geteilte Geometrien für Projektile/Pickups
 │   └── [x] FPS-Anzeige (F3)
 │
 ├── 18. Tests und Fehlerbehebung (alle M)
 │   ├── [x] Unit-Tests: Konfiguration, Waffen, Fahndung, Missionen, Speichern, Pathfinding, Wirtschaft
 │   ├── [x] Smoke-Test im Headless-Browser je Meilenstein
+│   ├── [x] Harte Browser-Tests: Bug-Check, alle Luftfahrzeuge, Startausrüstung
 │   ├── [x] Rettungen: Stuck, Fall durch Boden, Überschlag, Mission-Neustart
-│   └── [x] BEKANNTE_FEHLER.md
+│   └── [x] BEKANNTE_FEHLER.md, BUGLISTE.md
 │
 └── 19. Dokumentation und Auslieferung (M12)
     ├── [x] README.md (Beschreibung, Voraussetzungen, Start, Tastenbelegung)
@@ -389,5 +398,9 @@ Wird bei jedem Meilenstein aktualisiert. Aktueller Stand (08.10.2026, nach M12):
 - Verkehr ohne Spurwechsel und Überholen
 - Deckung ohne Blind Fire
 - Gamepad nur mit Standard-Layout und ohne echtes Gerät getestet
+
+**Nachtrag 08.10.2026 (Bug-Check, Luftfahrzeuge, Startausrüstung):** 30 Fehler gefunden, 28 behoben
+(BUGLISTE.md). Alle vier Luftfahrzeuge sind vollständig nutzbar, ein Heli und ein Flugzeug stehen nahe am Start.
+Neue Spiele beginnen mit Startwaffen und 6000 $. Offen: Gamepad-Drive-by (LT = Bremse + Zielen) und ein Test auf echter Hardware.
 
 Details: ANFORDERUNGEN_CHECKLISTE.md
