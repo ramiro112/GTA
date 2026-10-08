@@ -846,3 +846,26 @@ scen.dbg4 = async ({ page }) => {
   await page.click('[data-a=new]');
   console.log(await page.evaluate(() => { const g = window.game; g.player.teleport(64, null, 73); g.simulate(0.3); return document.getElementById('dialog').innerHTML; }));
 };
+
+scen.showcase = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const set = (fn) => page.evaluate(fn);
+  await set(() => { const g = window.game; g.settings.tutorialDone = true; g.ui.tutStep = 99; document.getElementById('hud-help').classList.add('hidden'); g.simulate(4); });
+  const view = async (name, fn) => { await page.evaluate(fn); await page.evaluate(() => { window.game.simulate(0.3); document.getElementById('hud-help').classList.add('hidden'); }); await shot(name); };
+  await view('01_downtown_day', () => { const g = window.game; g.weather.set('clear', true); g.tod.hour = 11; g.player.teleport(150, null, -168, Math.PI); g.camera3p.yaw = Math.PI * 0.95; g.camera3p.pitch = -0.05; g.simulate(4); });
+  await view('02_downtown_night', () => { const g = window.game; g.tod.hour = 22.5; g.player.teleport(270, null, -178, Math.PI); g.camera3p.yaw = Math.PI * 1.1; g.camera3p.pitch = 0; g.simulate(2); });
+  await view('03_storm', () => { const g = window.game; g.weather.set('storm', true); g.tod.hour = 16; g.player.teleport(90, null, 180, 0); g.camera3p.yaw = Math.PI * 0.6; g.camera3p.pitch = 0.05; g.simulate(2); });
+  await view('04_beach_sunset', () => { const g = window.game; g.weather.set('clear', true); g.tod.hour = 18.3; g.player.teleport(300, null, 570, Math.PI); g.camera3p.yaw = Math.PI * 0.7; g.camera3p.pitch = 0.08; });
+  await view('05_car_chase', () => { const g = window.game; g.tod.hour = 13; const v = g.vehicles.spawn('sports', { x: 390, z: -300, heading: 0 }); g.player.teleport(388, null, -300); g.vehicles._seatPlayer(v); g.police.wanted.ensureStars(2, g.player.pos); g.input.codesDown.add('KeyW'); g.simulate(5); g.input.codesDown.delete('KeyW'); g.camera3p.yaw = v.heading; g.camera3p.pitch = 0.2; });
+  await view('06_heli_city', () => { const g = window.game; g.police.reset(); g.vehicles.exitVehicle(g.player, true); const h = g.vehicles.spawn('heliSmall', { x: 100, z: 100, heading: Math.PI, y: 60 }); g.player.teleport(100, 60, 100); g.vehicles._seatPlayer(h); h.rotor = 1; g.simulate(1); g.camera3p.yaw = Math.PI; g.camera3p.pitch = 0.35; });
+  await view('07_suburb_roundabout', () => { const g = window.game; g.vehicles.exitVehicle(g.player, true); g.player.teleport(-470, null, 40, 1); g.camera3p.yaw = 1.0; g.camera3p.pitch = 0.25; g.simulate(2); });
+  await view('08_harbor', () => { const g = window.game; g.player.teleport(760, null, 300, Math.PI / 2); g.camera3p.yaw = Math.PI / 2; g.camera3p.pitch = 0.1; g.simulate(2); });
+  await view('09_mountain_view', () => { const g = window.game; g.player.teleport(115, null, -855, Math.PI); g.camera3p.yaw = Math.PI * 0.85; g.camera3p.pitch = 0.0; g.simulate(1); });
+  await view('10_airport', () => { const g = window.game; g.player.teleport(-540, null, -690, -Math.PI / 2); g.camera3p.yaw = -Math.PI / 2 - 0.3; g.camera3p.pitch = 0.05; g.simulate(2); });
+};
+
+scen.dbgAirport = async ({ page }) => {
+  await page.click('[data-a=new]');
+  const r = await page.evaluate(() => { const g = window.game; g.simulate(2); g.player.teleport(-540, null, -690, -Math.PI / 2); const out = []; for (let i = 0; i < 12; i++) { g.simulate(0.5); out.push({ hp: g.player.health, dead: g.player.dead, stars: g.police.wanted.stars, pend: !!g.respawn.pending, fade: g.respawn.fade.style.opacity, y: g.player.pos.y.toFixed(1) }); } return out; });
+  console.log(JSON.stringify(r));
+};

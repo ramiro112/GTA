@@ -199,7 +199,8 @@ export class GangSystem {
         npc.despawnable = false;
         const zone = s.zone === 'military' ? inMil : inAirport;
         npc.brain = guardBrain({ x: s.x, z: s.z }, zone, {
-          accuracy: s.kind === 'soldier' ? 0.4 : 0.25,
+          accuracy: s.kind === 'soldier' ? 0.3 : 0.15,
+          onWarn: () => { npc.say(s.kind === 'soldier' ? 'Militärisches Sperrgebiet! Sofort umkehren!' : 'Sperrbereich! Bitte verlassen Sie das Vorfeld!', 3); },
           onAlert: () => {
             npc.say(s.kind === 'soldier' ? 'Eindringling! Feuer frei!' : 'Halt! Sicherheitsdienst!', 2.5);
             events.emit('crime', { type: 'trespass', pos: g.player.pos.clone(), zone: s.zone, byGuard: true });

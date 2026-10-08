@@ -178,6 +178,7 @@ export const CONFIG = {
 
   // --------------------------------------------------------------------------
   ai: {
+    guardWarnTime: 4,      // Sekunden Warnung, bevor Wachen im Sperrgebiet schiessen
     pedCount: { low: 22, medium: 40, high: 60 },
     trafficCount: { low: 12, medium: 22, high: 34 },
     spawnRadius: 140,

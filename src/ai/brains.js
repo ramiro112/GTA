@@ -223,7 +223,7 @@ export class CombatBrain {
     const o = this.o;
     const g = npc.game;
     this.timer -= dt;
-    let t = o.target ? o.target(npc) : null;
+    let t = o.target ? o.target(npc, dt) : null;
     if (t && (t.dead || t.removed)) t = null;
     if (!t) {
       npc.aiming = false; npc.lookAt = null; npc.crouch = false;
@@ -376,11 +376,16 @@ export class CombatBrain {
 export function guardBrain(home, zoneTest, opts = {}) {
   return new CombatBrain({
     home, homeHeading: home.heading || 0, leash: opts.leash || 80, range: [8, 30], useCover: true, accuracy: opts.accuracy || 0.3,
-    target: (npc) => {
+    target: (npc, dt) => {
       const p = npc.game.player;
       if (p.dead) return null;
       if (npc.provoked) return p;
-      if (zoneTest(p.pos) && npc.canSee(p.pos, 45)) { npc.provoked = true; if (opts.onAlert) opts.onAlert(npc); return p; }
+      // Erst warnen, dann schiessen: wer nach der Warnzeit noch im Sperrgebiet ist, wird angegriffen.
+      if (zoneTest(p.pos) && npc.canSee(p.pos, 45)) {
+        if (npc.warnT === undefined) { npc.warnT = 0; if (opts.onWarn) opts.onWarn(npc); }
+        npc.warnT += dt || 0;
+        if (npc.warnT >= CONFIG.ai.guardWarnTime) { npc.provoked = true; if (opts.onAlert) opts.onAlert(npc); return p; }
+      } else if (npc.warnT !== undefined && !zoneTest(p.pos)) npc.warnT = undefined;
       return null;
     },
     ...opts,

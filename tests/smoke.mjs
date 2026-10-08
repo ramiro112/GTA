@@ -14,7 +14,7 @@ try { playwright = require('playwright'); } catch { playwright = require('/opt/n
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, 'docs', 'screenshots');
 fs.mkdirSync(outDir, { recursive: true });
-const port = 8137;
+const port = Number(process.env.SMOKE_PORT || 8137);
 const scenario = process.argv[2] || 'basic';
 
 const server = spawn(process.execPath, [path.join(root, 'start.js'), String(port)], { env: { ...process.env, NO_OPEN: '1' }, stdio: 'ignore' });
@@ -36,7 +36,7 @@ await page.evaluate(() => { window.game.ui.noAutoPause = true; });
 const scenarios = (await import('./scenarios.mjs')).default;
 const fn = scenarios[scenario];
 if (!fn) { console.error('Unbekanntes Szenario', scenario); process.exit(2); }
-const shot = async (name) => page.screenshot({ path: path.join(outDir, `${scenario}_${name}.png`) });
+const shot = async (name) => page.screenshot({ path: path.join(outDir, `${scenario}_${name}.png`), timeout: 180000 });
 try {
   await fn({ page, shot, wait: (ms) => page.waitForTimeout(ms) });
 } catch (e) {
