@@ -212,6 +212,13 @@ export class Game {
     events.emit(v ? 'game:paused' : 'game:resumed');
   }
 
+  /** Alle Figuren mit Gesundheit (Spieler, Passanten, Polizei, Gangster …). */
+  allCharacters() {
+    const out = [this.player];
+    for (const s of this.systems) if (s.characters) for (const c of s.characters) out.push(c);
+    return out;
+  }
+
   /** Blips für Minimap/Karte (Systeme können über mapBlips() beitragen). */
   blips() {
     const out = [];

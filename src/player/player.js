@@ -316,6 +316,7 @@ export class Player {
       return;
     }
     m.root.visible = true;
+    m.root.scale.setScalar(1);
     m.root.position.lerpVectors(this.prevPos, this.pos, alpha);
     m.root.rotation.set(0, this.heading, 0);
     const wpn = this.game.weapons ? this.game.weapons.current(this) : null;

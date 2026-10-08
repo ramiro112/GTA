@@ -13,6 +13,7 @@ export const DEFAULT_BINDINGS = {
   jump: ['Space'],
   crouch: ['KeyC'],
   enterVehicle: ['KeyF'],
+  passenger: ['KeyG'],
   interact: ['KeyE'],
   attack: ['Mouse0'],
   aim: ['Mouse2'],

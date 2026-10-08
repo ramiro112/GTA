@@ -31,6 +31,7 @@ await page.goto(`http://localhost:${port}/?quality=${process.env.QUALITY || 'low
 await page.waitForFunction(() => window.__gameReady === true, null, { timeout: 180000 });
 console.log(`Geladen in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 await page.screenshot({ path: path.join(outDir, `${scenario}_00_menu.png`) });
+await page.evaluate(() => { window.game.ui.noAutoPause = true; });
 
 const scenarios = (await import('./scenarios.mjs')).default;
 const fn = scenarios[scenario];
