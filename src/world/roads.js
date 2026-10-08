@@ -3,7 +3,7 @@
 // Reine Logik ohne Three.js → in Node testbar.
 
 import { CONFIG } from '../config.js';
-import { riverCenter, terrainHeight } from './terrain.js';
+import { riverCenter, terrainHeight, MOUNTAIN_ROAD } from './terrain.js';
 
 const W = CONFIG.world;
 
@@ -294,9 +294,7 @@ export function buildRoadNetwork() {
   // Bergstrasse mit Serpentinen zum Gipfel-Aussichtspunkt
   const bA = g.getNode(-90, R.minZ);
   const bEnd = g.addNode(120, -860, 'mountain');
-  const serp = [];
-  const raw = [[-95, -600], [-60, -640], [-110, -680], [-40, -720], [-100, -760], [-10, -790], [60, -810], [20, -840], [90, -850]];
-  for (const [x, z] of raw) serp.push({ x, z });
+  const serp = MOUNTAIN_ROAD.slice(1, -1).map(([x, z]) => ({ x, z }));
   const dense = densify([{ x: bA.x, z: bA.z }, ...serp, { x: bEnd.x, z: bEnd.z }], 6).slice(1, -1);
   g.addEdge(bA, bEnd, { kind: 'mountain', points: dense, speed: 10, draped: true });
 

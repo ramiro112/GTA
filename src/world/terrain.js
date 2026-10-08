@@ -82,8 +82,46 @@ function coastDistance(x, z) {
   return { d: Math.min(east, south, north, west), harborEdge: harborQuay && east < Math.min(south, north, west) };
 }
 
-/** Rohe Terrainhöhe ohne Tunnel-Sonderfall. */
+/** Bergstrasse (Serpentinen) – Polylinie vom Autobahnknoten bis zum Gipfel-Aussichtspunkt. */
+export const MOUNTAIN_ROAD = [[-90, -540], [-95, -600], [-60, -640], [-110, -680], [-40, -720], [-100, -760], [-10, -790], [60, -810], [20, -840], [90, -850], [120, -860]];
+let _mr = null;
+function mountainRoadData() {
+  if (_mr) return _mr;
+  const pts = MOUNTAIN_ROAD.map(([x, z]) => ({ x, z }));
+  const acc = [0];
+  for (let i = 1; i < pts.length; i++) acc.push(acc[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
+  const end = pts[pts.length - 1];
+  _mr = { pts, acc, total: acc[acc.length - 1], hEnd: Math.max(0, terrainRaw(end.x, end.z)) };
+  return _mr;
+}
+
+/** Geplante Strassenhöhe (gleichmässige Steigung) und Abstand zur Bergstrasse. */
+export function mountainRoadInfo(x, z) {
+  if (x < -140 || x > 150 || z < -890 || z > -530) return null;
+  const m = mountainRoadData();
+  let best = null;
+  for (let i = 1; i < m.pts.length; i++) {
+    const a = m.pts[i - 1], b = m.pts[i];
+    const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz;
+    const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / l2));
+    const d = Math.hypot(x - a.x - dx * t, z - a.z - dz * t);
+    if (!best || d < best.d) best = { d, s: m.acc[i - 1] + Math.sqrt(l2) * t };
+  }
+  const u = best.s / m.total;
+  best.h = m.hEnd * (u * u * (3 - 2 * u) * 0.35 + u * 0.65);
+  return best;
+}
+
+/** Terrainhöhe inkl. Bergstrasse (abgetragen/aufgeschüttet). */
 export function terrainHeight(x, z) {
+  const h = terrainRaw(x, z);
+  const r = mountainRoadInfo(x, z);
+  if (r && r.d < 16) return h + (r.h - h) * smoothstep(16, 8, r.d);
+  return h;
+}
+
+/** Rohe Terrainhöhe ohne Strassen- und Tunnel-Sonderfälle. */
+export function terrainRaw(x, z) {
   const flat = flatFactor(x, z);
   let h = 0;
   const mm = mountainMask(x, z);

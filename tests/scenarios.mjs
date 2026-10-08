@@ -802,3 +802,21 @@ scen.tunnel2 = async ({ page }) => {
     return out.slice(-20).join('\n');
   }));
 };
+scen.mountain = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  console.log(await page.evaluate(() => {
+    const g = window.game, pl = g.player, out = [];
+    g.godMode = true;
+    const v = g.vehicles.spawn('suv', { x: -92, z: -560, heading: Math.PI });
+    pl.teleport(-90, null, -556); g.vehicles._seatPlayer(v);
+    // Spieler-Auto per Autopilot (gleicher Controller wie KI) zum Gipfel
+    const d = g.population.spawn({ kind: 'ped', x: -92, z: -560 });
+    v.driver = d; d.vehicle = v; pl.vehicle = null;
+    v.ai = { mode: 'direct', goal: v.pos.clone().set(120, 0, -860), maxSpeed: 14, arriveDist: 8 }; g.traffic.cars.push(v);
+    pl.teleport(-80, null, -560);
+    for (let i = 0; i < 12; i++) { g.simulate(5); pl.teleport(v.pos.x + 8, null, v.pos.z + 8); out.push(`t=${(i + 1) * 5}s pos=${v.pos.x.toFixed(0)},${v.pos.y.toFixed(0)},${v.pos.z.toFixed(0)} v=${(v.vel.length() * 3.6).toFixed(0)}km/h up=${v.up.y.toFixed(2)} wps=${v.ai && v.ai.wps ? v.ai.wps.length : '-'}`); if (v.ai && v.ai.arrived) break; }
+    return out.join('\n');
+  }));
+  await page.evaluate(() => { const g = window.game; g.camera3p.yaw = 0; g.camera3p.pitch = 0.3; g.simulate(0.1); });
+  await shot('01_mountain');
+};

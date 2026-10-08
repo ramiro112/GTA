@@ -218,14 +218,28 @@ export class TrafficSystem {
       const g = this.game.roads;
       // Start an der nächsten Strassenkante (nicht am nächsten Knoten – der kann z. B. hinter einem Berg liegen)
       const ep = g.nearestEdgePoint(v.pos.x, v.pos.z);
-      const na = g.nodes[ep.edge.a], nb = g.nodes[ep.edge.b];
-      const score = (n) => Math.hypot(n.x - v.pos.x, n.z - v.pos.z) + Math.hypot(n.x - tp.x, n.z - tp.z);
-      const a = score(na) <= score(nb) ? na : nb;
       const eg = g.nearestEdgePoint(tp.x, tp.z);
-      const ga = g.nodes[eg.edge.a], gb = g.nodes[eg.edge.b];
-      const b = Math.hypot(ga.x - tp.x, ga.z - tp.z) <= Math.hypot(gb.x - tp.x, gb.z - tp.z) ? ga : gb;
-      const path = g.findPath(a.id, b.id);
-      ai.wps = path ? [{ x: a.x, z: a.z }, ...path.map((s) => ({ x: s.node.x, z: s.node.z }))] : null;
+      const pts = [];
+      if (ep.edge === eg.edge) {
+        // Gleiche Strasse: Polylinie zwischen beiden Projektionen
+        const P = ep.edge.points;
+        if (eg.seg + eg.t >= ep.seg + ep.t) for (let i = ep.seg + 1; i <= eg.seg; i++) pts.push(P[i]);
+        else for (let i = ep.seg; i > eg.seg; i--) pts.push(P[i]);
+      } else {
+        const na = g.nodes[ep.edge.a], nb = g.nodes[ep.edge.b];
+        const score = (n) => Math.hypot(n.x - v.pos.x, n.z - v.pos.z) + Math.hypot(n.x - tp.x, n.z - tp.z);
+        const a = score(na) <= score(nb) ? na : nb;
+        const ga = g.nodes[eg.edge.a], gb = g.nodes[eg.edge.b];
+        const b = Math.hypot(ga.x - tp.x, ga.z - tp.z) <= Math.hypot(gb.x - tp.x, gb.z - tp.z) ? ga : gb;
+        const P = ep.edge.points;
+        if (a === na) for (let i = ep.seg; i >= 0; i--) pts.push(P[i]); else for (let i = ep.seg + 1; i < P.length; i++) pts.push(P[i]);
+        const path = g.findPath(a.id, b.id) || [];
+        for (const st of path) { const E = st.forward ? st.edge.points : [...st.edge.points].reverse(); pts.push(...E.slice(1)); }
+        const Q = eg.edge.points;
+        if (b === ga) for (let i = 1; i <= eg.seg; i++) pts.push(Q[i]); else for (let i = Q.length - 2; i > eg.seg; i--) pts.push(Q[i]);
+      }
+      pts.push({ x: tp.x, z: tp.z });
+      ai.wps = pts.map((q) => ({ x: q.x, z: q.z }));
       // Startknoten überspringen, wenn er hinter uns liegt
       if (ai.wps && ai.wps.length > 1) {
         const f = v.forward;
@@ -235,7 +249,7 @@ export class TrafficSystem {
     }
     let aim = tp;
     if (d > 60 && ai.wps && ai.wps.length) {
-      while (ai.wps.length > 1 && Math.hypot(ai.wps[0].x - v.pos.x, ai.wps[0].z - v.pos.z) < 12) ai.wps.shift();
+      while (ai.wps.length > 1 && Math.hypot(ai.wps[0].x - v.pos.x, ai.wps[0].z - v.pos.z) < 9) ai.wps.shift();
       aim = ai.wps[0];
     }
     const desired = Math.atan2(aim.x - v.pos.x, aim.z - v.pos.z);
@@ -243,6 +257,16 @@ export class TrafficSystem {
     const speed = v.speed;
     let vt = ai.maxSpeed || 30;
     if (Math.abs(diff) > 0.8) vt = Math.min(vt, 9);
+    // Vorausschauend vor scharfen Kurven bremsen (Haarnadeln, Kreuzungen)
+    if (ai.wps && ai.wps.length > 2 && d > 60) {
+      let acc = Math.hypot(ai.wps[0].x - v.pos.x, ai.wps[0].z - v.pos.z);
+      for (let i = 1; i < Math.min(ai.wps.length - 1, 8) && acc < 45; i++) {
+        const a = ai.wps[i - 1], b = ai.wps[i], c2 = ai.wps[i + 1];
+        const turn = Math.abs(angleDiff(Math.atan2(b.x - a.x, b.z - a.z), Math.atan2(c2.x - b.x, c2.z - b.z)));
+        if (turn > 0.5) vt = Math.min(vt, 5 + Math.max(0, acc - 8) * 0.45 + (1.6 - Math.min(1.6, turn)) * 8);
+        acc += Math.hypot(b.x - a.x, b.z - a.z);
+      }
+    }
     if (ai.mode === 'chase') {
       if (d < 12) vt = Math.min(vt, Math.max(0, (d - 6) * 1.2));
     } else if (d < (ai.arriveDist || 8)) { vt = 0; ai.arrived = true; }
