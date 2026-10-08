@@ -53,6 +53,8 @@ export class RespawnSystem {
     const pl = g.player;
     const eco = g.economy;
     g.loop.timeScale = 1;
+    // Wer im Fahrzeug gestorben ist, sitzt sonst nach dem Respawn weiter darin
+    if (pl.vehicle) g.vehicles.exitVehicle(pl, true);
     const sp = kind === 'busted' ? g.city.landmarks.spawnPoints.police : g.city.landmarks.spawnPoints.hospital;
     const fee = kind === 'busted' ? Math.max(100, Math.round(eco.money * CONFIG.player.bustFeePercent)) : CONFIG.player.respawnHospitalFee;
     const paid = Math.min(Math.max(0, eco.money), fee);

@@ -101,9 +101,14 @@ export class VehicleManager {
   // ------------------------------------------------------------------ Schleifen
   fixedUpdate(dt) {
     const pl = this.game.player;
-    if (pl.vehicle && !this.game.paused && !this.enterState) this._driveInput(pl.vehicle);
+    if (pl.vehicle && !this.game.paused && !this.enterState) {
+      // Toter Fahrer steuert nicht mehr: Fahrzeug rollt aus
+      if (pl.dead) { const c = pl.vehicle.controls; c.throttle = 0; c.brake = 0; c.steer = 0; c.up = false; c.down = false; c.pitch = 0; c.roll = 0; c.yaw = 0; }
+      else this._driveInput(pl.vehicle);
+    }
     for (const v of this.list) v.fixedUpdate(dt);
     this._vehicleCollisions();
+    if (pl.vehicle) pl.syncToVehicle();
   }
 
   update(dt) {
@@ -128,7 +133,7 @@ export class VehicleManager {
     // Spieler im Fahrzeug: Hupe, Licht, Sirene, Kamera, Reset, Aussteigen
     const pl = g.player;
     const v = pl.vehicle;
-    if (v && !this.enterState) {
+    if (v && !this.enterState && !pl.dead) {
       const inp = g.input;
       v.horn = inp.down('horn');
       if (inp.pressed('lights')) v.lightsOn = !v.lightsOn;

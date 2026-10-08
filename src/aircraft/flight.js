@@ -56,7 +56,7 @@ export class FlightSystem {
     const g = this.game;
     const pl = g.player;
     const v = pl.vehicle;
-    if (v && v.isAircraft && !g.paused) v.fireWeapons(dt, g.input);
+    if (v && v.isAircraft && !g.paused && !pl.dead) v.fireWeapons(dt, g.input);
     // Polizeihubschrauber entfernen, wenn keine Fahndung mehr
     const h = g.police && g.police.heli;
     if (h && (g.police.stars < CONFIG.police.helicopterFrom - 1 || h.removed) && (h.pos.distanceTo(pl.pos) > 200 || g.police.stars === 0)) this.removePoliceHeli();

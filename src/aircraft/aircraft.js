@@ -8,14 +8,15 @@ import { MeshBuilder } from '../world/meshbuilder.js';
 import { WATER_Y } from '../world/terrain.js';
 import { clamp, damp } from '../core/mathutil.js';
 import { events } from '../core/events.js';
+import { disposeTree, markShared } from '../core/dispose.js';
 
 const FC = CONFIG.flight;
 const G = () => CONFIG.physics.gravity;
 const UP = new THREE.Vector3(0, 1, 0);
 let nextId = 20000;
 
-const glassMat = new THREE.MeshLambertMaterial({ color: 0x1a2533, emissive: 0x0a1018 });
-const darkMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+const glassMat = markShared(new THREE.MeshLambertMaterial({ color: 0x1a2533, emissive: 0x0a1018 }));
+const darkMat = markShared(new THREE.MeshLambertMaterial({ color: 0x222222 }));
 
 // ============================================================================ Modelle
 function heliModel(def, military) {
@@ -201,7 +202,8 @@ class Aircraft {
     const g = this.game;
     this.mgCooldown -= dt; this.missileCooldown -= dt;
     const f = this.forward;
-    if (inp.down('attack') && this.mgCooldown <= 0) {
+    // Gamepad: RT/LT steuern Schub bzw. Kollektiv → Bordwaffen dort auf B (MG) und X (Raketen)
+    if ((inp.downKey('attack') || inp.down('fireAir')) && this.mgCooldown <= 0) {
       const def = CONFIG.weapons.mg;
       this.mgCooldown = 1 / def.rate;
       const muzzle = this.pos.clone().addScaledVector(f, this.size[2] * 0.5).addScaledVector(this.up, -0.6);
@@ -214,7 +216,7 @@ class Aircraft {
       events.emit('weapon:fired', { shooter: this.driver, pos: muzzle, weapon: 'mg' });
       if (this.driver && this.driver.isPlayer) g.weapons._crime(muzzle);
     }
-    if ((inp.pressed('fireSecondary') || inp.pressed('aim')) && this.missileCooldown <= 0) {
+    if ((inp.pressedKey('fireSecondary') || inp.pressedKey('aim') || inp.pressed('fireAirSecondary')) && this.missileCooldown <= 0) {
       const def = CONFIG.weapons.missile;
       this.missileCooldown = 1 / def.rate;
       for (const side of [-1, 1]) {
@@ -244,7 +246,10 @@ class Aircraft {
     const g = this.game;
     const col = g.collision;
     const bottomY = this.pos.y + this.model.bottom;
-    const gh = col.groundHeight(this.pos.x, this.pos.z, this.pos.y + 0.5, Math.max(0.5, -this.model.bottom + 0.3)).h;
+    // Abfrage ab der höheren der beiden Positionen (vorher/jetzt): bei schnellem Sinkflug (bis ~2,5 m pro
+    // Schritt) würde ein Dach sonst „übersprungen“ und das Luftfahrzeug fiele in das Gebäude.
+    const fromY = Math.max(this.pos.y, this.prevPos.y) + 0.5;
+    const gh = col.groundHeight(this.pos.x, this.pos.z, fromY, Math.max(0.5, -this.model.bottom + 0.3)).h;
     let impact = 0;
     this.onGround = false;
     if (bottomY <= gh + 0.02) {
@@ -368,7 +373,7 @@ class Aircraft {
     events.emit('player:bailout', { aircraft: this });
   }
 
-  remove() { this.game.scene.remove(this.mesh); this.removed = true; }
+  remove() { if (this.removed) return; this.game.scene.remove(this.mesh); disposeTree(this.mesh); this.removed = true; }
 }
 
 // ============================================================================ Helikopter
@@ -390,7 +395,7 @@ export class Helicopter extends Aircraft {
     this.prevQuat.copy(this.quat);
     const c = this.controls;
     const d = this.def;
-    const piloted = !!this.driver && !this.destroyed && this.fuel > 0;
+    const piloted = !!this.driver && !this.driver.dead && !this.destroyed && this.fuel > 0;
     this.rotor = clamp(this.rotor + (piloted ? dt / FC.rotorSpinUp : -dt / 6), 0, 1);
     const m = this.mass;
     const force = new THREE.Vector3(0, -G() * m, 0);
@@ -476,7 +481,7 @@ export class Plane extends Aircraft {
     const c = this.controls;
     const d = this.def;
     const m = this.mass;
-    const piloted = !!this.driver && !this.destroyed && this.fuel > 0;
+    const piloted = !!this.driver && !this.driver.dead && !this.destroyed && this.fuel > 0;
     if (piloted) this.throttle = clamp(this.throttle + ((c.up ? 1 : 0) - (c.down ? 1 : 0)) * dt * 0.6, 0, 1);
     else this.throttle = Math.max(0, this.throttle - dt * 0.5);
     const f = this.forward, up = this.up, right = this.right;

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { tr } from '../core/i18n.js';
+import { disposeTree } from '../core/dispose.js';
 
 // ------------------------------------------------------------------ Markierungen
 const markerMat = (c, o = 0.35) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide });
@@ -28,7 +29,7 @@ export function makeMarker(game, pos, { color = 0xffd23f, radius = 2.5, kind = '
   g.position.set(pos.x, kind === 'ring' ? y : y + 0.05, pos.z);
   g.renderOrder = 3;
   game.scene.add(g);
-  const m = { mesh: g, pos: new THREE.Vector3(pos.x, g.position.y, pos.z), radius, kind, color, remove: () => game.scene.remove(g), isMarker: true };
+  const m = { mesh: g, pos: new THREE.Vector3(pos.x, g.position.y, pos.z), radius, kind, color, remove: () => { game.scene.remove(g); disposeTree(g); }, isMarker: true };
   return m;
 }
 
@@ -37,7 +38,7 @@ export function makeArrow(game, target, color = 0xff3b30) {
   const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.9, 4), markerMat(color, 0.95));
   mesh.rotation.x = Math.PI;
   game.scene.add(mesh);
-  return { mesh, target, isArrow: true, color, remove: () => game.scene.remove(mesh) };
+  return { mesh, target, isArrow: true, color, remove: () => { game.scene.remove(mesh); disposeTree(mesh); } };
 }
 
 // ------------------------------------------------------------------ Stufen

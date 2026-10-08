@@ -62,9 +62,21 @@ export class Player {
     this.airTime = 0;
   }
 
+  /** Position/Geschwindigkeit an das Fahrzeug koppeln, in dem die Figur sitzt. */
+  syncToVehicle() {
+    const v = this.vehicle;
+    if (!v) return;
+    this.pos.copy(v.pos);
+    this.vel.copy(v.vel);
+    this.heading = v.heading;
+  }
+
   /** Fester Physikschritt zu Fuss. */
   fixedUpdate(dt) {
-    if (this.vehicle || this.dead) return;
+    // Im Fahrzeug folgt die Spielerposition dem Fahrzeug (früher blieb sie am Einstiegsort stehen:
+    // Parkplatz-Streaming, Polizei, Autosave usw. arbeiteten dann mit einer falschen Position).
+    if (this.vehicle) { this.prevPos.copy(this.pos); this.syncToVehicle(); return; }
+    if (this.dead) return;
     this.prevPos.copy(this.pos);
     const g = this.game;
     const input = g.input;
@@ -140,10 +152,12 @@ export class Player {
       this.heading += angleDiff(this.heading, target) * Math.min(1, dt * 12);
     }
 
-    // Springen / Klettern / Fallschirm
-    if (input.consume('jump')) {
+    // Springen / Klettern / Fallschirm (Fallschirm hat eine eigene, frei belegbare Aktion)
+    const jumpPressed = input.consume('jump');
+    const chutePressed = input.consume('parachute');
+    if (jumpPressed || chutePressed) {
       if (this.swimming) this.vel.y = 2;
-      else if (this.onGround) {
+      else if (this.onGround && jumpPressed) {
         const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
         const probe = col.obstacleTop(this.pos.x + fx * 0.7, this.pos.z + fz * 0.7, 0.3, this.pos.y + 0.3, this.pos.y + P.climbMaxHeight + 0.3);
         if (probe && probe.top - this.pos.y > 0.4 && probe.top - this.pos.y <= P.climbMaxHeight && !probe.obj.ramp) {
@@ -227,7 +241,7 @@ export class Player {
     // Rettung: durch den Boden gefallen / ausserhalb der Welt
     const th = groundTerrain(this.pos.x, this.pos.z, this.pos.y);
     if (this.pos.y < th - 2.5 && !this.swimming && th > WATER_Y - 1.3) {
-      this.pos.y = col.groundHeight(this.pos.x, this.pos.z, th + 50, 0).h + 0.1;
+      this.pos.y = col.groundHeight(this.pos.x, this.pos.z, th + 2, 0).h + 0.1; // nicht auf ein Dach/den Tunnelberg setzen
       this.vel.y = 0;
     }
     if (this.pos.y < -60) this.teleport(this.lastSafe.x, null, this.lastSafe.z);

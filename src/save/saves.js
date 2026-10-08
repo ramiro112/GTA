@@ -7,7 +7,7 @@ import { defaultState, encode, decode } from './serialize.js';
 import { WeaponInventory } from '../weapons/weapondata.js';
 import { Inventory } from '../economy/shops.js';
 import { WantedLevel } from '../police/wanted.js';
-import { districtAt } from '../world/terrain.js';
+import { districtAt, WATER_Y } from '../world/terrain.js';
 import { tr, t } from '../core/i18n.js';
 import { events } from '../core/events.js';
 
@@ -47,9 +47,12 @@ export class SaveSystem {
   collect() {
     const g = this.game, pl = g.player;
     const look = pl.model.look;
+    // Im Fahrzeug (z. B. Autosave nach einer Mission): aktuelle Fahrzeugposition auf Bodenhöhe speichern
+    const v = pl.vehicle;
+    const pos = v ? { x: v.pos.x, y: Math.max(WATER_Y, g.collision.groundHeight(v.pos.x, v.pos.z, v.pos.y, 0).h), z: v.pos.z } : { x: pl.pos.x, y: pl.pos.y, z: pl.pos.z };
     return {
       ...defaultState(),
-      player: { pos: { x: pl.pos.x, y: pl.pos.y, z: pl.pos.z }, heading: pl.heading, health: pl.health, armor: pl.armor, look: { shirt: look.shirt, pants: look.pants, hair: look.hair }, weapons: pl.inventory.toJSON() },
+      player: { pos, heading: v ? v.heading : pl.heading, health: pl.health, armor: pl.armor, look: { shirt: look.shirt, pants: look.pants, hair: look.hair }, weapons: pl.inventory.toJSON() },
       economy: { money: g.economy.money, ownedProperties: [...g.economy.ownedProperties], ownedVehicles: g.economy.ownedVehicles.map((v) => ({ ...v })), garageSlots: g.economy.garageSlots },
       inventory: g.inventory.toJSON(),
       missions: g.missions.toJSON(),

@@ -9,6 +9,7 @@ import { CombatBrain } from '../ai/brains.js';
 import { events } from '../core/events.js';
 import { Random } from '../core/random.js';
 import { clamp } from '../core/mathutil.js';
+import { disposeTree } from '../core/dispose.js';
 
 const PC = CONFIG.police;
 
@@ -382,7 +383,7 @@ export class PoliceSystem {
     const g = this.game;
     for (const v of rb.cars) if (g.player.vehicle !== v) { v.persistent = false; g.vehicles.remove(v); }
     for (const c of rb.cops) if (!c.removed) { g.population.remove(c); const i = this.cops.indexOf(c); if (i >= 0) this.cops.splice(i, 1); }
-    if (rb.spike) { g.scene.remove(rb.spike.mesh); this.spikes.splice(this.spikes.indexOf(rb.spike), 1); }
+    if (rb.spike) { g.scene.remove(rb.spike.mesh); disposeTree(rb.spike.mesh); this.spikes.splice(this.spikes.indexOf(rb.spike), 1); }
   }
 
   // ------------------------------------------------------------------ Festnahme

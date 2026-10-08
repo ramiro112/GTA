@@ -4,6 +4,7 @@
 // Ein-/Aussteigen (sitzen), Fallschirm, umfallen (vereinfachter Ragdoll).
 
 import * as THREE from 'three';
+import { markShared } from '../core/dispose.js';
 
 const geoCache = {};
 function boxGeo(w, h, d, pivotTop = true) {
@@ -11,14 +12,14 @@ function boxGeo(w, h, d, pivotTop = true) {
   if (!geoCache[key]) {
     const g = new THREE.BoxGeometry(w, h, d);
     if (pivotTop) g.translate(0, -h / 2, 0);
-    geoCache[key] = g;
+    geoCache[key] = markShared(g);
   }
   return geoCache[key];
 }
 
 const matCache = new Map();
 export function charMat(hex) {
-  if (!matCache.has(hex)) matCache.set(hex, new THREE.MeshLambertMaterial({ color: hex }));
+  if (!matCache.has(hex)) matCache.set(hex, markShared(new THREE.MeshLambertMaterial({ color: hex })));
   return matCache.get(hex);
 }
 

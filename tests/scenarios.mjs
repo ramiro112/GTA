@@ -869,3 +869,144 @@ scen.dbgAirport = async ({ page }) => {
   const r = await page.evaluate(() => { const g = window.game; g.simulate(2); g.player.teleport(-540, null, -690, -Math.PI / 2); const out = []; for (let i = 0; i < 12; i++) { g.simulate(0.5); out.push({ hp: g.player.health, dead: g.player.dead, stars: g.police.wanted.stars, pend: !!g.respawn.pending, fade: g.respawn.fade.style.opacity, y: g.player.pos.y.toFixed(1) }); } return out; });
   console.log(JSON.stringify(r));
 };
+
+
+// ---------------------------------------------------------------------------------------------
+// Bug-Check: prüft Kernfunktionen mit harten Erwartungen (wirft bei Fehlschlag).
+scen.bugcheck = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const res = await page.evaluate(() => {
+    const g = window.game, pl = g.player, inp = g.input, log = [];
+    const ok = (c, msg) => log.push((c ? 'OK   ' : 'FAIL ') + msg);
+    const insideSolid = (p) => g.collision.query(p.x - 0.05, p.z - 0.05, p.x + 0.05, p.z + 0.05, []).some((b) => b.solid && p.x > b.minX + 0.05 && p.x < b.maxX - 0.05 && p.z > b.minZ + 0.05 && p.z < b.maxZ - 0.05 && p.y > b.minY + 0.05 && p.y < b.maxY - 0.05);
+    g.settings.tutorialDone = true; g.ui.tutStep = 99;
+    g.simulate(1);
+    // --- Laufen, Springen
+    const z0 = pl.pos.z; inp.codesDown.add('KeyW'); g.simulate(1.5); inp.codesDown.delete('KeyW');
+    ok(Math.abs(pl.pos.z - z0) > 3, `Laufen (${(pl.pos.z - z0).toFixed(1)} m)`);
+    inp.tap('Space'); g.simulate(0.2); const yj = pl.pos.y - g.collision.groundHeight(pl.pos.x, pl.pos.z, pl.pos.y, 0).h; g.simulate(1.5);
+    ok(yj > 0.3 && pl.onGround, `Springen (+${yj.toFixed(2)} m) und Landen`);
+    // --- Kamera an einer Hauswand: nicht in der Wand
+    let camBad = 0;
+    for (const [x, z, yaw] of [[64, 77.5, 0], [52, 88, -Math.PI / 2], [182, -74.5, 0]]) {
+      pl.teleport(x, null, z, yaw); g.camera3p.yaw = yaw; g.camera3p.pitch = 0.1; g.simulate(0.5);
+      if (insideSolid(g.camera.position)) camBad++;
+    }
+    ok(camBad === 0, `Kamera nicht in Wänden (${camBad} Fehler)`);
+    // --- Auto: einsteigen, fahren, Position des Spielers folgt
+    pl.teleport(64, null, 62, Math.PI);
+    const car = g.vehicles.spawn('sedan', { x: 64, z: 58, heading: Math.PI });
+    car.locked = false;
+    g.vehicles.beginEnter(car); g.simulate(3);
+    ok(pl.vehicle === car, 'Einsteigen per Tastenablauf');
+    inp.codesDown.add('KeyW'); g.simulate(5); inp.codesDown.delete('KeyW');
+    ok(car.pos.distanceTo(pl.pos.clone().set(64, 0, 58)) > 20, `Fahren (${(car.speedKmh || 0).toFixed(0)} km/h)`);
+    ok(pl.pos.distanceTo(car.pos) < 3, `Spielerposition folgt dem Fahrzeug (Abstand ${pl.pos.distanceTo(car.pos).toFixed(1)} m)`);
+    inp.codesDown.add('KeyS'); g.simulate(4); inp.codesDown.delete('KeyS');
+    inp.tap('KeyF'); g.simulate(0.5);
+    ok(!pl.vehicle && pl.pos.distanceTo(car.pos) < 5, 'Aussteigen neben dem Auto');
+    // --- Fahrstabilität: 25 s Vollgas mit Lenkwechseln
+    let flips = 0, flyAway = 0, maxY = 0;
+    g.vehicles._seatPlayer(car); car.resetUpright(true);
+    for (let i = 0; i < 50; i++) {
+      inp.codesDown.add('KeyW'); if (i % 6 < 2) inp.codesDown.add('KeyA'); else if (i % 6 < 4) inp.codesDown.add('KeyD');
+      g.simulate(0.5);
+      inp.codesDown.delete('KeyA'); inp.codesDown.delete('KeyD');
+      const gh = g.collision.groundHeight(car.pos.x, car.pos.z, car.pos.y + 1, 2).h;
+      maxY = Math.max(maxY, car.pos.y - gh);
+      if (car.pos.y - gh > 6) flyAway++;
+      if (car.up.y < 0.3) flips++;
+    }
+    inp.codesDown.delete('KeyW');
+    ok(flyAway === 0, `Auto hebt nicht ab (max. ${maxY.toFixed(1)} m über Boden)`);
+    log.push(`INFO Umkipp-Proben: ${flips}/50`);
+    g.vehicles.exitVehicle(pl, true);
+    // --- Waffen
+    const inv = pl.inventory;
+    inv.give('pistol', 30); inv.give('rocket', 3); inv.give('grenade', 3);
+    inp.tap('Digit3'); g.simulate(0.1);
+    ok(inv.current.id === 'pistol', 'Waffenwechsel per Zifferntaste');
+    const m0 = inv.current.mag; inp.codesDown.add('Mouse2'); inp.tap('Mouse0'); g.simulate(0.4); inp.codesDown.delete('Mouse2');
+    ok(inv.current.mag === m0 - 1, `Schuss verbraucht Munition (${m0}→${inv.current.mag})`);
+    inp.tap('KeyR'); g.simulate(2);
+    ok(inv.current.mag === 12, `Nachladen (Magazin ${inv.current.mag}/${inv.current.ammo})`);
+    inv.current.mag = 0; inv.current.ammo = 0; inp.tap('Mouse0'); g.simulate(0.3);
+    ok(g.weapons.reloading <= 0, 'Leeres Magazin ohne Reserve hängt nicht im Nachladen');
+    inv.select(8); g.weapons._equipModel();
+    g.camera3p.pitch = 0.3; inp.codesDown.add('Mouse2'); inp.tap('Mouse0'); g.simulate(0.2); inp.codesDown.delete('Mouse2');
+    const rAfterShot = inv.current.mag; g.simulate(3);
+    ok(rAfterShot === 0 && inv.current.mag === 1, `Raketenwerfer lädt automatisch nach (${rAfterShot}→${inv.current.mag}/${inv.current.ammo})`);
+    // --- Waffenrad + Pause
+    inp.codesDown.add('Tab'); g.simulate(0.1);
+    const wheelOpen = g.weapons.wheelOpen;
+    g.ui.showPause(); g.simulate(0.1);
+    const visiblePaused = !document.getElementById('wheel').classList.contains('hidden');
+    inp.codesDown.delete('Tab'); g.ui.resume(); g.simulate(0.2);
+    ok(wheelOpen && !visiblePaused && g.loop.timeScale === 1, `Waffenrad schliesst bei Pause (sichtbar=${visiblePaused}, Zeitfaktor ${g.loop.timeScale})`);
+    // --- Speicherleck: zwischen zwei Orten pendeln (Streaming von Autos/Passanten), Projektile, Pickups
+    g.godMode = true;
+    const geoAt = [];
+    for (let k = 0; k < 4; k++) {
+      pl.teleport(64, null, 62); g.simulate(3);
+      for (let i = 0; i < 15; i++) g.weapons.spawnProjectile('grenade', pl.pos.clone().setY(pl.pos.y + 30), pl.pos.clone().set(0, -1, 0), pl);
+      for (let i = 0; i < 15; i++) g.weapons.dropPickup('pistol', pl.pos.clone().setX(pl.pos.x + 40 + i), 10);
+      g.simulate(4);
+      for (const p of [...g.weapons.pickups]) if (!p.respawn) p.life = 0;
+      pl.teleport(600, null, 300); g.simulate(3);
+      pl.teleport(-500, null, -100); g.simulate(3);
+      pl.teleport(64, null, 62); g.simulate(3); g.render();
+      geoAt.push(g.renderer.info.memory.geometries);
+    }
+    ok(geoAt[3] - geoAt[1] < 25, `Kein Geometrie-Leck beim Pendeln/Schiessen (Geometrien je Runde: ${geoAt.join(' → ')})`);
+    g.godMode = false;
+    // --- Tod im Auto → Respawn zu Fuss im Krankenhaus
+    const car2 = g.vehicles.spawn('compact', { x: 150, z: -120, heading: 0 });
+    pl.teleport(148, null, -120); g.vehicles._seatPlayer(car2); g.simulate(0.3);
+    pl.damage(1000, { type: 'bullet' });
+    g.simulate(6);
+    const hosp = g.city.landmarks.spawnPoints.hospital;
+    ok(!pl.dead && !pl.vehicle && Math.hypot(pl.pos.x - hosp.x, pl.pos.z - hosp.z) < 5, `Respawn nach Tod im Auto (im Fahrzeug=${!!pl.vehicle}, Abstand Klinik ${Math.hypot(pl.pos.x - hosp.x, pl.pos.z - hosp.z).toFixed(0)} m)`);
+    ok(car2.driver !== pl, 'Auto hat nach dem Tod keinen Spieler-Fahrer mehr');
+    // --- Tod zu Fuss + Fahndung zurückgesetzt
+    g.police.wanted.ensureStars(2, pl.pos); pl.damage(1000, { type: 'bullet' }); g.simulate(6);
+    ok(!pl.dead && pl.health === 100 && g.police.stars === 0, `Respawn zu Fuss (HP ${pl.health}, Sterne ${g.police.stars})`);
+    // --- Speichern/Laden im Browser
+    g.economy.money = 4321; pl.inventory.give('smg', 90); pl.inventory.select(3); pl.teleport(120, null, 60, 1.0); pl.health = 66; pl.armor = 40;
+    g.missions.engine.completed.add('heimkehr');
+    g.saves.save('3');
+    g.economy.money = 1; pl.inventory.clear(); pl.teleport(0, null, 0); g.missions.engine.completed.clear();
+    g.saves.load('3'); g.simulate(0.2);
+    ok(g.economy.money === 4321 && pl.inventory.has('smg') && pl.inventory.current.id === 'smg' && Math.abs(pl.pos.x - 120) < 0.5 && Math.round(pl.health) === 66 && Math.round(pl.armor) === 40 && g.missions.engine.completed.has('heimkehr'),
+      `Speichern/Laden (Geld ${g.economy.money}, Waffe ${pl.inventory.current.id}, Pos ${pl.pos.x.toFixed(0)}, HP ${pl.health}, Weste ${pl.armor})`);
+    g.saves.remove('3');
+    // Spielstand im Fahrzeug (Autosave) speichert die Fahrzeugposition
+    const car3 = g.vehicles.spawn('sedan', { x: 200, z: 60, heading: 0 });
+    pl.teleport(198, null, 60); g.vehicles._seatPlayer(car3); car3.pos.x = 260; g.simulate(0.2);
+    const st = g.saves.collect();
+    ok(Math.abs(st.player.pos.x - car3.pos.x) < 3, `Autosave im Fahrzeug speichert aktuelle Position (${st.player.pos.x.toFixed(0)} vs ${car3.pos.x.toFixed(0)})`);
+    g.vehicles.exitVehicle(pl, true);
+    // --- Wechsel Menü ↔ Spiel: nach jedem Schliessen läuft das Spiel wieder mit aktiver Eingabe
+    const ui = g.ui; const back = (name) => ok(!g.paused && g.input.enabled && ui.mode === 'game', `Zurück im Spiel nach: ${name} (pausiert=${g.paused}, Eingabe=${g.input.enabled}, Modus=${ui.mode})`);
+    ui.showMap(); ok(ui.mode === 'map', 'Karte öffnet'); ui.closeMap(); back('Karte');
+    ui.showPause(); ok(g.paused, 'Pause pausiert'); ui.resume(); back('Pause');
+    ui.mode = 'pause'; g.pause(true); ui.showInventory(() => ui.resume()); ui.resume(); back('Inventar');
+    ui.phone.toggle(); ok(ui.phone.isOpen, 'Handy öffnet'); ui.phone.close(); back('Handy');
+    g.shops.gunshop(); ui.resume(); back('Waffenladen');
+    // --- Geld/Laden
+    g.economy.money = 5000; const had = pl.inventory.has('shotgun');
+    g.shops.gunshop(); const menu = g.ui.currentMenu || null;
+    log.push('INFO Ladenmenü offen: ' + !!document.querySelector('.panel'));
+    g.ui.resume();
+    void had; void menu;
+    return log;
+  });
+  console.log(res.join('\n'));
+  const fails = res.filter((l) => l.startsWith('FAIL'));
+  if (fails.length) throw new Error(fails.length + ' Prüfungen fehlgeschlagen');
+};
+
+// Lädt das Spiel, spult vor und besucht den Flughafen – mit VERBOSE=1 werden alle Konsolenmeldungen (auch Warnungen) ausgegeben.
+scen.warnings = async ({ page }) => {
+  await page.click('[data-a=new]');
+  await page.evaluate(() => { const g = window.game; g.simulate(5); g.render(); g.player.teleport(-540, null, -690); g.simulate(2); g.render(); });
+};

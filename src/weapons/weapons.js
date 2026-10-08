@@ -9,16 +9,24 @@ import { events } from '../core/events.js';
 import { tr } from '../core/i18n.js';
 import { clamp } from '../core/mathutil.js';
 import { WATER_Y } from '../world/terrain.js';
+import { markShared } from '../core/dispose.js';
 
 const _v = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 
 // ---------------------------------------------------------------- Waffenmodelle
+// Je Waffe wird ein Vorlagemodell einmal gebaut; Kopien teilen Geometrie und Material
+// (früher entstanden bei jedem Waffenwechsel/Pickup neue Geometrien → Speicherleck).
 const modelCache = {};
-function wmat(c) { return new THREE.MeshLambertMaterial({ color: c }); }
+const wmatCache = new Map();
+function wmat(c) { if (!wmatCache.has(c)) wmatCache.set(c, markShared(new THREE.MeshLambertMaterial({ color: c }))); return wmatCache.get(c); }
 export function makeWeaponModel(id) {
+  if (!modelCache[id]) modelCache[id] = buildWeaponModel(id);
+  return modelCache[id].clone();
+}
+function buildWeaponModel(id) {
   const g = new THREE.Group();
-  const add = (w, h, d, x, y, z, c) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wmat(c)); m.position.set(x, y, z); g.add(m); return m; };
+  const add = (w, h, d, x, y, z, c) => { const m = new THREE.Mesh(markShared(new THREE.BoxGeometry(w, h, d)), wmat(c)); m.position.set(x, y, z); g.add(m); return m; };
   switch (id) {
     case 'knife': add(0.03, 0.03, 0.12, 0, 0, 0.02, 0x222222); add(0.01, 0.04, 0.22, 0, 0, 0.18, 0xcccccc); break;
     case 'bat': add(0.05, 0.05, 0.75, 0, 0, 0.3, 0x9b6b3a); add(0.08, 0.08, 0.3, 0, 0, 0.55, 0xa8784a); break;
@@ -27,7 +35,7 @@ export function makeWeaponModel(id) {
     case 'shotgun': add(0.05, 0.08, 0.3, 0, 0, -0.05, 0x6b4a2a); add(0.04, 0.04, 0.7, 0, 0.03, 0.35, 0x333333); break;
     case 'rifle': add(0.05, 0.1, 0.3, 0, 0, -0.08, 0x2a2a2a); add(0.05, 0.07, 0.6, 0, 0.03, 0.3, 0x333333); add(0.04, 0.15, 0.06, 0, -0.08, 0.15, 0x111111); break;
     case 'sniper': add(0.05, 0.1, 0.35, 0, 0, -0.1, 0x3b3b2a); add(0.035, 0.035, 0.9, 0, 0.03, 0.45, 0x222222); add(0.05, 0.05, 0.25, 0, 0.1, 0.15, 0x111111); break;
-    case 'grenade': { const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), wmat(0x3e4a2a)); g.add(m); break; }
+    case 'grenade': { const m = new THREE.Mesh(markShared(new THREE.SphereGeometry(0.07, 8, 6)), wmat(0x3e4a2a)); g.add(m); break; }
     case 'rocket': add(0.12, 0.12, 1.1, 0, 0.05, 0.2, 0x4a5a32); add(0.06, 0.15, 0.06, 0, -0.06, 0.05, 0x222222); break;
     default: break;
   }
@@ -91,6 +99,24 @@ export function rayVehicle(v, ox, oy, oz, dx, dy, dz, maxT) {
   return { t: tmin, local: o.addScaledVector(d, tmin) };
 }
 
+// Geteilte Geometrien/Materialien für Projektile und Pickups (einmal erzeugt, nie freigegeben).
+let _res = null;
+function sharedRes() {
+  if (_res) return _res;
+  const pm = new Map();
+  _res = {
+    grenadeGeo: markShared(new THREE.SphereGeometry(0.1, 8, 6)),
+    grenadeMat: markShared(new THREE.MeshLambertMaterial({ color: 0x3e4a2a })),
+    rocketGeo: markShared(new THREE.CylinderGeometry(0.07, 0.07, 0.8, 6).rotateX(Math.PI / 2)),
+    rocketMat: markShared(new THREE.MeshLambertMaterial({ color: 0x556b2f, emissive: 0x331100 })),
+    boxGeo: markShared(new THREE.BoxGeometry(0.35, 0.35, 0.35)),
+    ringGeo: markShared(new THREE.RingGeometry(0.45, 0.55, 20).rotateX(-Math.PI / 2)),
+    ringMat: markShared(new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.6 })),
+    pickupMat: (c) => { if (!pm.has(c)) pm.set(c, markShared(new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.3 }))); return pm.get(c); },
+  };
+  return _res;
+}
+
 // ---------------------------------------------------------------- System
 export class WeaponSystem {
   constructor(game) {
@@ -151,12 +177,14 @@ export class WeaponSystem {
     this._updateTracers(dt);
     if (pl.dead || g.paused) { pl.aiming = false; this._hudCrosshair(false); return; }
 
-    // Waffenwechsel
+    // Waffenwechsel (nicht im Luftfahrzeug: dort gelten Bordwaffen, LB/Q steuern das Gieren)
     let changed = false;
-    for (let i = 0; i < 10; i++) if (inp.pressed('weapon' + i)) changed = inv.select(i === 0 ? 9 : i - 1) || changed;
-    if (inp.pressed('weaponNext')) { inv.cycle(1); changed = true; }
-    if (inp.pressed('weaponPrev')) { inv.cycle(-1); changed = true; }
-    if (g.ui && g.ui.weaponWheel) {
+    const inAircraft = !!(pl.vehicle && pl.vehicle.isAircraft);
+    if (this.wheelOpen && inAircraft) { this.wheelOpen = false; g.ui.weaponWheel.close(); }
+    for (let i = 0; i < 10 && !inAircraft; i++) if (inp.pressed('weapon' + i)) changed = inv.select(i === 0 ? 9 : i - 1) || changed;
+    if (!inAircraft && inp.pressed('weaponNext')) { inv.cycle(1); changed = true; }
+    if (!inAircraft && inp.pressed('weaponPrev')) { inv.cycle(-1); changed = true; }
+    if (g.ui && g.ui.weaponWheel && !inAircraft) {
       if (inp.down('weaponWheel') && !this.wheelOpen) { this.wheelOpen = true; g.ui.weaponWheel.open(); }
       if (this.wheelOpen && !inp.down('weaponWheel')) { this.wheelOpen = false; const s = g.ui.weaponWheel.close(); if (s !== null && inv.select(s)) changed = true; }
       if (this.wheelOpen) g.ui.weaponWheel.update(inp);
@@ -177,7 +205,7 @@ export class WeaponSystem {
     if (this.reloading > 0) {
       this.reloading -= dt;
       if (this.reloading <= 0) { inv.reload(); events.emit('weapon:reloaded', { shooter: pl }); }
-    } else if ((inp.pressed('reload') && inv.canReload()) || (w.def.type === 'gun' && w.mag === 0 && w.ammo > 0)) {
+    } else if ((inp.pressed('reload') && inv.canReload()) || ((w.def.type === 'gun' || w.def.type === 'projectile') && w.mag === 0 && w.ammo > 0)) {
       this.reloading = w.def.reload || 1.5;
       events.emit('weapon:reload', { shooter: pl, weapon: w.id });
     }
@@ -498,12 +526,8 @@ export class WeaponSystem {
   // ---------------------------------------------------------------- Projektile
   spawnProjectile(type, pos, vel, owner) {
     const g = this.game;
-    let mesh;
-    if (type === 'grenade') {
-      mesh = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshLambertMaterial({ color: 0x3e4a2a }));
-    } else {
-      mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.8, 6).rotateX(Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x556b2f, emissive: 0x331100 }));
-    }
+    const R = sharedRes();
+    const mesh = type === 'grenade' ? new THREE.Mesh(R.grenadeGeo, R.grenadeMat) : new THREE.Mesh(R.rocketGeo, R.rocketMat);
     mesh.position.copy(pos);
     g.scene.add(mesh);
     const def = type === 'grenade' ? weaponDef('grenade') : type === 'missile' ? CONFIG.weapons.missile : weaponDef('rocket');
@@ -550,12 +574,10 @@ export class WeaponSystem {
   dropPickup(type, pos, ammo = null, respawn = false) {
     const g = this.game;
     const group = new THREE.Group();
+    const R = sharedRes();
     if (WEAPON_META[type]) group.add(makeWeaponModel(type));
-    else {
-      const color = type === 'health' ? 0x4cd964 : type === 'armor' ? 0x5ac8fa : 0xf1c40f;
-      group.add(new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.3 })));
-    }
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.55, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.6 }));
+    else group.add(new THREE.Mesh(R.boxGeo, R.pickupMat(type === 'health' ? 0x4cd964 : type === 'armor' ? 0x5ac8fa : 0xf1c40f)));
+    const ring = new THREE.Mesh(R.ringGeo, R.ringMat);
     ring.position.y = -0.6;
     group.add(ring);
     const y = g.collision.groundHeight(pos.x, pos.z, pos.y + 1.5, 1.5).h;

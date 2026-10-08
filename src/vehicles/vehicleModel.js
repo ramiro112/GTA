@@ -3,15 +3,16 @@
 
 import * as THREE from 'three';
 import { MeshBuilder } from '../world/meshbuilder.js';
+import { markShared } from '../core/dispose.js';
 
 const shared = {};
-function mat(key, make) { if (!shared[key]) shared[key] = make(); return shared[key]; }
+function mat(key, make) { if (!shared[key]) shared[key] = markShared(make()); return shared[key]; }
 const glassMat = () => mat('glass', () => new THREE.MeshLambertMaterial({ color: 0x1a2533, emissive: 0x0a1018 }));
 const darkMat = () => mat('dark', () => new THREE.MeshLambertMaterial({ color: 0x1b1b1d }));
 const trimMat = () => mat('trim', () => new THREE.MeshLambertMaterial({ vertexColors: true }));
 const chromeMat = () => mat('chrome', () => new THREE.MeshLambertMaterial({ color: 0xb8bcc2 }));
-const wheelGeo = (r, w) => { const k = `w${r}_${w}`; if (!shared[k]) { const g = new THREE.CylinderGeometry(r, r, w, 12); g.rotateZ(Math.PI / 2); shared[k] = g; } return shared[k]; };
-const rimGeo = (r, w) => { const k = `r${r}_${w}`; if (!shared[k]) { const g = new THREE.CylinderGeometry(r * 0.55, r * 0.55, w + 0.02, 8); g.rotateZ(Math.PI / 2); shared[k] = g; } return shared[k]; };
+const wheelGeo = (r, w) => { const k = `w${r}_${w}`; if (!shared[k]) { const g = new THREE.CylinderGeometry(r, r, w, 12); g.rotateZ(Math.PI / 2); shared[k] = markShared(g); } return shared[k]; };
+const rimGeo = (r, w) => { const k = `r${r}_${w}`; if (!shared[k]) { const g = new THREE.CylinderGeometry(r * 0.55, r * 0.55, w + 0.02, 8); g.rotateZ(Math.PI / 2); shared[k] = markShared(g); } return shared[k]; };
 
 function lightMat(color, intensity = 0.2) {
   return new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: intensity });

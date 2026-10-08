@@ -10,6 +10,7 @@ import { stageKit, makeMarker } from './stages.js';
 import { MILITARY } from '../world/layout.js';
 import { events } from '../core/events.js';
 import { CombatBrain } from '../ai/brains.js';
+import { disposeTree } from '../core/dispose.js';
 
 export const CONTACTS = {
   mika: { name: 'Mika', pitch: 1.0 },
@@ -528,7 +529,7 @@ function makeArrowFor(game, target) {
   const mesh = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 4), new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.9, depthWrite: false }));
   mesh.rotation.x = Math.PI;
   game.scene.add(mesh);
-  return { mesh, target, isArrow: true, remove: () => game.scene.remove(mesh) };
+  return { mesh, target, isArrow: true, remove: () => { game.scene.remove(mesh); disposeTree(mesh); } };
 }
 
 // ---------------------------------------------------------------------- Schleichstufe
@@ -554,7 +555,7 @@ function stealthStage(game, M, { docs, exitTest }) {
         cone.rotation.x = -Math.PI / 2;
         game.scene.add(cone);
         g.cone = cone;
-        c.track({ isMarker: true, mesh: cone, remove: () => game.scene.remove(cone) });
+        c.track({ isMarker: true, mesh: cone, remove: () => { game.scene.remove(cone); disposeTree(cone); } });
         g.brain = { update: (n) => {
           if (c.data.alarm) return;
           const t = n.route[n.wp];

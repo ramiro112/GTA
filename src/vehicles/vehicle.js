@@ -9,9 +9,10 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { buildVehicleModel } from './vehicleModel.js';
-import { WATER_Y, terrainHeight } from '../world/terrain.js';
+import { WATER_Y, terrainHeight, groundTerrain } from '../world/terrain.js';
 import { clamp, damp } from '../core/mathutil.js';
 import { events } from '../core/events.js';
+import { disposeTree } from '../core/dispose.js';
 
 const VC = CONFIG.vehicleCommon;
 const G = () => CONFIG.physics.gravity;
@@ -132,6 +133,13 @@ export class Vehicle {
     this.prevQuat.copy(this.quat);
     const sub = 2;
     for (let i = 0; i < sub; i++) this._step(dt / sub);
+    // Rettung: durch den Boden gefallen (z. B. bei sehr hohem Tempo an Geländekanten) → zurück auf den Boden
+    const th = groundTerrain(this.pos.x, this.pos.z, this.pos.y);
+    if (this.pos.y < th - 3 && th > WATER_Y - 1.3) {
+      this.pos.y = this.game.collision.groundHeight(this.pos.x, this.pos.z, th + 2, 0).h + this.comHeight + 0.2;
+      this.vel.y = Math.max(0, this.vel.y);
+      this.prevPos.copy(this.pos);
+    }
     // Schlafen, wenn ruhig und ohne Fahrer
     if (!this.driver && this.vel.lengthSq() < 0.01 && this.angVel.lengthSq() < 0.01 && this.wheelsOnGround >= 3 && !this.onFire) {
       this.sleepTimer = (this.sleepTimer || 0) + dt;
@@ -576,7 +584,9 @@ export class Vehicle {
   }
 
   remove() {
+    if (this.removed) return;
     this.game.scene.remove(this.mesh);
+    disposeTree(this.mesh);
     this.removed = true;
   }
 }

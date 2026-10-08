@@ -7,6 +7,7 @@ import { buildBoatModel } from './vehicleModel.js';
 import { WATER_Y, terrainHeight } from '../world/terrain.js';
 import { damp, clamp } from '../core/mathutil.js';
 import { events } from '../core/events.js';
+import { disposeTree } from '../core/dispose.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 let nextId = 10000;
@@ -166,7 +167,7 @@ export class Boat {
     return new THREE.Vector3(this.pos.x - f.z * side * 2.2, this.pos.y, this.pos.z + f.x * side * 2.2);
   }
 
-  remove() { this.game.scene.remove(this.mesh); this.removed = true; }
+  remove() { if (this.removed) return; this.game.scene.remove(this.mesh); disposeTree(this.mesh); this.removed = true; }
 }
 
 /** Liegeplätze der Boote. */

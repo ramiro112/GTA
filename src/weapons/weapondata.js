@@ -114,12 +114,25 @@ export class WeaponInventory {
     return { current: this.currentSlot, slots: this.slots.map((s) => (s ? { id: s.id, mag: s.mag, ammo: s.ammo } : null)) };
   }
 
+  /**
+   * Inventar aus Spielstand. Robust gegen alte/kaputte Daten: unbekannte Waffen werden übersprungen,
+   * jede Waffe landet in ihrem aktuellen Slot laut Konfiguration, Munition wird auf ganze Zahlen ≥ 0 begrenzt.
+   */
   static fromJSON(data) {
     const inv = new WeaponInventory();
-    if (!data) return inv;
-    inv.slots = data.slots.map((s) => (s ? { id: s.id, def: weaponDef(s.id), mag: s.mag, ammo: s.ammo } : null));
+    if (!data || !Array.isArray(data.slots)) return inv;
+    const num = (n) => (Number.isFinite(n) && n > 0 ? Math.floor(n) : 0);
+    let currentId = null;
+    data.slots.forEach((s, i) => {
+      if (!s || !CONFIG.weapons[s.id] || !WEAPON_META[s.id]) return;
+      const def = weaponDef(s.id);
+      if (def.slot === undefined || def.slot >= SLOT_COUNT) return;
+      inv.slots[def.slot] = { id: s.id, def, mag: Math.min(num(s.mag), def.mag || 0), ammo: num(s.ammo) };
+      if (i === data.current) currentId = s.id;
+    });
     if (!inv.slots[0]) inv.slots[0] = { id: 'fist', def: weaponDef('fist'), mag: 0, ammo: 0 };
-    inv.currentSlot = inv.slots[data.current] ? data.current : 0;
+    const cur = currentId ? weaponDef(currentId).slot : 0;
+    inv.currentSlot = inv.slots[cur] ? cur : 0;
     return inv;
   }
 }

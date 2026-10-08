@@ -32,8 +32,22 @@ export function normalizeState(raw) {
   out.missions = { ...d.missions, ...(raw.missions || {}) };
   out.activities = { ...d.activities, ...(raw.activities || {}) };
   out.time = { ...d.time, ...(raw.time || {}) };
+  const fin = (v) => typeof v === 'number' && Number.isFinite(v);
+  if (!Array.isArray(out.economy.ownedProperties)) out.economy.ownedProperties = [...d.economy.ownedProperties];
   if (!out.economy.ownedProperties.includes('home')) out.economy.ownedProperties.push('home');
-  if (typeof out.economy.money !== 'number' || !isFinite(out.economy.money)) out.economy.money = d.economy.money;
+  if (!Array.isArray(out.economy.ownedVehicles)) out.economy.ownedVehicles = [];
+  if (!fin(out.economy.money)) out.economy.money = d.economy.money;
+  // Spielerwerte: ungültige Zahlen (NaN, Text) würden Position/Gesundheit zerstören
+  const p = out.player.pos;
+  if (!p || !fin(p.x) || !fin(p.z)) out.player.pos = { ...d.player.pos };
+  else if (!fin(p.y)) out.player.pos = { x: p.x, y: d.player.pos.y, z: p.z };
+  if (!fin(out.player.heading)) out.player.heading = d.player.heading;
+  if (!fin(out.player.health) || out.player.health <= 0) out.player.health = d.player.health;
+  out.player.health = Math.min(CONFIG.player.maxHealth, out.player.health);
+  if (!fin(out.player.armor) || out.player.armor < 0) out.player.armor = 0;
+  if (!out.inventory || typeof out.inventory !== 'object') out.inventory = { ...d.inventory };
+  if (!Array.isArray(out.missions.completed)) out.missions.completed = [];
+  if (!fin(out.time.hour)) out.time.hour = d.time.hour;
   out.version = SAVE_VERSION;
   return out;
 }

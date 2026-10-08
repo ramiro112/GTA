@@ -51,25 +51,30 @@ export const DEFAULT_BINDINGS = {
 
 for (let i = 1; i <= 10; i++) DEFAULT_BINDINGS['weapon' + (i % 10)] = ['Digit' + (i % 10)];
 
-/** Gamepad-Standard-Mapping (feste Zuordnung, in README dokumentiert). */
-const PAD_BUTTONS = {
-  0: ['jump', 'handbrake', 'parachute'], // A
-  1: ['crouch', 'reload'],               // B
-  2: ['interact'],                       // X
-  3: ['enterVehicle'],                   // Y
-  4: ['weaponPrev', 'cover', 'yawLeft'],  // LB
-  5: ['weaponNext', 'horn', 'yawRight'],  // RB
-  6: ['aim', 'fireSecondary'],           // LT
-  7: ['attack'],                         // RT
-  8: ['map'],                            // Back/View
-  9: ['pause'],                          // Start/Menu
-  10: ['sprint'],                        // L3
-  11: ['camera'],                        // R3
-  12: ['phone'],                         // D-Pad hoch
-  13: ['weaponWheel'],                   // D-Pad runter
-  14: ['radio'],                         // D-Pad links
-  15: ['lights', 'gear'],                // D-Pad rechts
+/**
+ * Gamepad-Standard-Mapping (feste Zuordnung, in README dokumentiert).
+ * Aktionen auf derselben Taste dürfen sich nur in verschiedenen Situationen überschneiden
+ * (zu Fuss / Auto / Luftfahrzeug), sonst lösen sie gleichzeitig aus.
+ */
+export const PAD_BUTTONS = {
+  0: ['jump', 'handbrake', 'parachute'],   // A: Springen · Handbremse · Fallschirm
+  1: ['reload', 'fireAir'],                // B: Nachladen · Bord-MG (Luftfahrzeug)
+  2: ['interact', 'fireAirSecondary'],     // X: Interagieren · Raketen (Luftfahrzeug)
+  3: ['enterVehicle'],                     // Y: Ein-/Aussteigen
+  4: ['weaponWheel', 'yawLeft'],           // LB: Waffenrad (halten) · Gieren links
+  5: ['cover', 'horn', 'yawRight'],        // RB: Deckung · Hupe · Gieren rechts
+  6: ['aim', 'fireSecondary'],             // LT: Zielen · Raketen (Bremse im Auto über Achse)
+  7: ['attack'],                           // RT: Schiessen (Gas im Auto über Achse)
+  8: ['map'],                              // Back/View: Karte
+  9: ['pause'],                            // Start/Menu: Pause
+  10: ['sprint'],                          // L3: Sprinten
+  11: ['crouch', 'lookBehind'],            // R3: Ducken (zu Fuss) · zurückschauen (Fahrzeug)
+  12: ['phone'],                           // D-Pad hoch: Handy
+  13: ['radio', 'flaps'],                  // D-Pad runter: Radio (Auto) · Landeklappen (Flugzeug)
+  14: ['camera'],                          // D-Pad links: Kamera/Cockpit (Fahrzeug)
+  15: ['gear', 'lights'],                  // D-Pad rechts: Fahrwerk (Flugzeug) · Licht (Auto)
 };
+// Waffenwahl am Gamepad über das Waffenrad (LB halten).
 
 const KEY_LABELS = {
   Space: 'Leertaste', ShiftLeft: 'Shift', ShiftRight: 'Shift R', ControlLeft: 'Strg', ControlRight: 'Strg R',
@@ -235,6 +240,21 @@ export class InputManager {
     for (const c of codes) if (this.fixedPressed.has(c)) { hit = true; this.fixedPressed.delete(c); this.codesPressed.delete(c); }
     if (this.padPressed.has(action) || this.padFixed.has(action)) { hit = true; this.padPressed.delete(action); this.padFixed.delete(action); }
     return hit;
+  }
+
+  /** Nur Tastatur/Maus (ohne Gamepad) – für Aktionen, deren Gamepad-Taste je nach Fahrzeug anders belegt ist. */
+  downKey(action) {
+    if (!this.enabled) return false;
+    const codes = this.actionCodes.get(action);
+    if (codes) for (const c of codes) if (this.codesDown.has(c)) return true;
+    return false;
+  }
+
+  pressedKey(action) {
+    if (!this.enabled) return false;
+    const codes = this.actionCodes.get(action);
+    if (codes) for (const c of codes) if (this.codesPressed.has(c)) return true;
+    return false;
   }
 
   /** Taste gedrückt – auch wenn das Spiel pausiert ist (für Menüs). */
