@@ -820,3 +820,29 @@ scen.mountain = async ({ page, shot }) => {
   await page.evaluate(() => { const g = window.game; g.camera3p.yaw = 0; g.camera3p.pitch = 0.3; g.simulate(0.1); });
   await shot('01_mountain');
 };
+
+scen.carry = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const r = await page.evaluate(() => {
+    const g = window.game, out = [], pl = g.player;
+    const trash = g.city.props.find((p) => p.type === 'trash' && !p.broken && Math.abs(p.x) < 400 && p.z > -400 && p.z < 400);
+    pl.teleport(trash.x + 1, null, trash.z, -Math.PI / 2); g.simulate(0.3);
+    g.input.tap('KeyE'); g.simulate(0.2);
+    out.push('Trägt: ' + (g.carry.held ? g.carry.held.type : 'nichts') + ', Requisit entfernt: ' + trash.broken);
+    const ped = g.population.spawn({ kind: 'ped', x: pl.pos.x + Math.sin(pl.heading) * 5, z: pl.pos.z + Math.cos(pl.heading) * 5 });
+    g.camera3p.yaw = pl.heading; g.camera3p.pitch = 0.0; g.simulate(0.1);
+    const hp0 = ped.health;
+    g.input.tap('Mouse0'); g.simulate(1.5);
+    out.push(`Geworfen: hält noch ${!!g.carry.held}, Passant HP ${hp0} → ${ped.health.toFixed(0)}`);
+    // Zwischensequenz beim Missionsstart
+    pl.teleport(64, null, 73); g.simulate(0.3);
+    out.push('Mission aktiv: ' + (g.missions.active && g.missions.active.id) + ', Kinokamera: ' + !!g.camera3p.cinematic);
+    return out;
+  });
+  console.log(r.join('\n'));
+  await shot('01_cinematic');
+};
+scen.dbg4 = async ({ page }) => {
+  await page.click('[data-a=new]');
+  console.log(await page.evaluate(() => { const g = window.game; g.player.teleport(64, null, 73); g.simulate(0.3); return document.getElementById('dialog').innerHTML; }));
+};

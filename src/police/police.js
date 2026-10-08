@@ -72,6 +72,8 @@ export class PoliceSystem {
       return;
     }
     const direct = c.type === 'assaultCop' || c.type === 'killCop' || this.copSees(pos);
+    // Gestohlenes Fahrzeug gilt als gemeldet, wenn Polizei es sieht, der Alarm losging oder der Fahrer herausgezerrt wurde
+    if (c.vehicle && (direct || c.type === 'carAlarm' || c.jacked)) c.vehicle.reported = true;
     if (direct) {
       const r = this.wanted.addCrime(c.type, this.game.player.pos);
       if (r.after > r.before) events.emit('wanted:up', { stars: r.after });
@@ -80,6 +82,7 @@ export class PoliceSystem {
 
   onWitness(e) {
     if (this.disabled || this.game.player.dead) return;
+    if (e.crime.vehicle) e.crime.vehicle.reported = true;
     const r = this.wanted.addCrime(e.crime.type, e.crime.pos, 0.75);
     if (r.after > r.before) {
       events.emit('wanted:up', { stars: r.after, witness: true });

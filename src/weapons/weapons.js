@@ -183,7 +183,7 @@ export class WeaponSystem {
     }
 
     // Feuern
-    const trigger = w.def.auto ? inp.down('attack') : inp.pressed('attack');
+    const trigger = !(g.carry && g.carry.held) && (w.def.auto ? inp.down('attack') : inp.pressed('attack'));
     if (trigger && this.fireTimer <= 0 && this.reloading <= 0 && !this.wheelOpen) {
       if (!v) this._playerFire(pl, w);
       else if (canDriveBy && pl.aiming) this._playerFire(pl, w);

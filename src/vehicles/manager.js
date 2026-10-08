@@ -128,7 +128,7 @@ export class VehicleManager {
     // Spieler im Fahrzeug: Hupe, Licht, Sirene, Kamera, Reset, Aussteigen
     const pl = g.player;
     const v = pl.vehicle;
-    if (v) {
+    if (v && !this.enterState) {
       const inp = g.input;
       v.horn = inp.down('horn');
       if (inp.pressed('lights')) v.lightsOn = !v.lightsOn;

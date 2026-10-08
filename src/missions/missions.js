@@ -173,8 +173,42 @@ export class MissionSystem {
     const g = this.game;
     g.hud.center(tr(def.title), 'passed', CONTACTS[def.giver] ? CONTACTS[def.giver].name : '', 3);
     this.objective('');
+    this._cinematic(4.5);
     this.retryTimer = 0;
     events.emit('mission:start', { id: def.id });
+  }
+
+  /** Kurze Zwischensequenz: Kamerafahrt um den Spieler mit Kinobalken. */
+  _cinematic(sec) {
+    const g = this.game;
+    const pl = g.player;
+    if (pl.vehicle) return;
+    if (!this.bars) {
+      this.bars = document.createElement('div');
+      this.bars.id = 'cinebars';
+      this.bars.style.cssText = 'position:absolute;inset:0;pointer-events:none';
+      g.hud.el.hud.appendChild(this.bars);
+    }
+    this.bars.classList.remove('hidden');
+    this.cineT = sec;
+    this.cineA = g.camera3p.yaw + Math.PI * 0.75;
+  }
+
+  _updateCinematic(dt) {
+    const g = this.game;
+    if (!(this.cineT > 0)) return;
+    this.cineT -= dt;
+    const pl = g.player;
+    this.cineA += dt * 0.35;
+    const head = pl.pos.clone().add(new THREE.Vector3(0, 1.6, 0));
+    const pos = head.clone().add(new THREE.Vector3(Math.sin(this.cineA) * 4.5, 0.6, Math.cos(this.cineA) * 4.5));
+    g.camera3p.cinematic = { pos, look: head };
+    const skip = g.input.codesPressed.has('Escape');
+    if (this.cineT <= 0 || pl.vehicle || skip || (g.player.speed || 0) > 1) {
+      this.cineT = 0;
+      g.camera3p.cinematic = null;
+      this.bars.classList.add('hidden');
+    }
   }
 
   _onPass(def, reward, time) {
@@ -253,6 +287,7 @@ export class MissionSystem {
     const g = this.game;
     if (this.hintTimer > 0) this.hintTimer -= dt;
     this.dialog.update(dt);
+    this._updateCinematic(dt);
     this.engine.update(dt);
     // Route regelmässig neu berechnen
     this._routeT = (this._routeT || 0) - dt;

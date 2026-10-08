@@ -21,7 +21,8 @@ export class Interactions {
   update() {
     const g = this.game;
     const p = g.player;
-    if (p.dead || g.paused) { this.current = null; g.interactPromptActive = false; return; }
+    // In Luftfahrzeugen ist E das Seitenruder → keine Interaktionen
+    if (p.dead || g.paused || (p.vehicle && p.vehicle.isAircraft)) { this.current = null; g.interactPromptActive = false; return; }
     const pos = p.vehicle ? p.vehicle.pos : p.pos;
     let best = null, bd = Infinity;
     for (const pt of this.points) {
