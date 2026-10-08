@@ -607,6 +607,11 @@ export class City {
     const glow = night;
     for (const mat of this.nightMaterials) mat.emissiveIntensity = mat === this.mat.office || mat === this.mat.resi ? glow * 1.1 : 0.15 + glow * 1.2;
     if (this.lightPoolMat) this.lightPoolMat.opacity = glow * 0.85;
+    // Nasse Strassen bei Regen: dunkler Asphalt
+    if (this.wetness !== undefined) {
+      const k = 1 - this.wetness * 0.35;
+      this.mat.road.color.setRGB(k, k, k * 1.02);
+    }
   }
 
   setDrawDistance(d) { this.quality.drawDistance = d; }

@@ -112,6 +112,19 @@ export class VehicleManager {
     this._enterLogic(dt);
     const night = g.tod.night;
     for (const v of this.list) v.updateVisual(dt, 1, night);
+    // Echter Scheinwerfer-Lichtkegel nur für das Spielerfahrzeug (Performance)
+    if (!this.headlight) {
+      this.headlight = new THREE.SpotLight(0xfff2d0, 0, 70, 0.55, 0.45, 1.2);
+      g.scene.add(this.headlight); g.scene.add(this.headlight.target);
+    }
+    const pv = g.player.vehicle;
+    const hl = this.headlight;
+    if (pv && !pv.destroyed && (night > 0.35 || pv.lightsOn || g.weather.state.fog > 0.6) && !pv.isBoat) {
+      const f = pv.forward;
+      hl.position.copy(pv.renderPos || pv.pos).addScaledVector(f, (pv.size ? pv.size[2] / 2 : 2) + 0.3).add(new THREE.Vector3(0, 0.3, 0));
+      hl.target.position.copy(hl.position).addScaledVector(f, 20).add(new THREE.Vector3(0, -2.5, 0));
+      hl.intensity = 220;
+    } else hl.intensity = 0;
     // Spieler im Fahrzeug: Hupe, Licht, Sirene, Kamera, Reset, Aussteigen
     const pl = g.player;
     const v = pl.vehicle;

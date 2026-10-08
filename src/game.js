@@ -170,6 +170,7 @@ export class Game {
     });
     const camPos = this.camera.position;
     this.env.update(dt, this.tod, this.weather, camPos, focus, () => events.emit('weather:thunder'));
+    this.city.wetness = this.weather.wetness;
     this.city.update(dt, this.elapsed, camPos, this.tod.night);
     if (this.hud && this.started) this.hud.update(dt);
     if (this.ui) this.ui.update(dt);
