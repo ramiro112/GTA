@@ -139,18 +139,33 @@ export const CONFIG = {
   },
 
   // --------------------------------------------------------------------------
+  // Luftfahrzeuge. Alle Werte hier anpassbar:
+  //  mass kg · health Lebenspunkte · fuel Tankinhalt (Einheiten, Verbrauch je Sekunde siehe flight.fuelUse*)
+  //  Helikopter: lift = max. Auftrieb (× Gewicht), climbSpeed/descentSpeed = Steig-/Sinkrate m/s (Arcade), maxSpeed m/s,
+  //              tilt = max. Neigung (rad, bestimmt Beschleunigung vor/zurück/seitwärts), yawRate = Drehen
+  //  Flugzeuge:  thrust N, maxSpeed m/s, stallSpeed m/s (darunter Strömungsabriss), liftK = Auftriebsfaktor,
+  //              pitchRate/rollRate/yawRate = Wendigkeit um Quer-/Längs-/Hochachse
   aircraft: {
-    heliSmall:  { kind: 'heli', name: { de: 'Helikopter "Libelle"', en: 'Helicopter "Dragonfly"' }, mass: 1400, lift: 1.8, maxSpeed: 55, yawRate: 1.6, tilt: 0.45, health: 900, fuel: 120, size: [2.2, 2.6, 9], price: 250000, weapons: false, colors: [0x2f62d8, 0xe8e8e8] },
-    heliMil:    { kind: 'heli', name: { de: 'Militärhubschrauber "Falke"', en: 'Military helicopter "Falcon"' }, mass: 5000, lift: 1.75, maxSpeed: 70, yawRate: 1.3, tilt: 0.5, health: 2200, fuel: 160, size: [3, 3.4, 15], price: 0, weapons: true, colors: [0x3b4a2f] },
+    heliSmall:  { kind: 'heli', name: { de: 'Helikopter "Libelle"', en: 'Helicopter "Dragonfly"' }, mass: 1400, lift: 1.8, climbSpeed: 9, descentSpeed: 7, maxSpeed: 55, yawRate: 1.6, tilt: 0.45, health: 900, fuel: 120, size: [2.2, 2.6, 9], price: 250000, weapons: false, colors: [0x2f62d8, 0xe8e8e8] },
+    heliMil:    { kind: 'heli', name: { de: 'Militärhubschrauber "Falke"', en: 'Military helicopter "Falcon"' }, mass: 5000, lift: 1.75, climbSpeed: 8, descentSpeed: 6, maxSpeed: 70, yawRate: 1.3, tilt: 0.5, health: 2200, fuel: 160, size: [3, 3.4, 15], price: 0, weapons: true, colors: [0x3b4a2f] },
     planeProp:  { kind: 'plane', name: { de: 'Propellerflugzeug "Möwe"', en: 'Prop plane "Gull"' }, mass: 900, thrust: 9000, maxSpeed: 72, stallSpeed: 22, liftK: 1.0, pitchRate: 1.1, rollRate: 1.9, yawRate: 0.5, health: 700, fuel: 200, size: [10, 2.6, 8], price: 180000, weapons: false, colors: [0xf2f2f2, 0xd32f2f] },
     jet:        { kind: 'plane', name: { de: 'Düsenjet "Speer"', en: 'Jet "Spear"' }, mass: 9000, thrust: 95000, maxSpeed: 150, stallSpeed: 45, liftK: 1.0, pitchRate: 1.5, rollRate: 3.0, yawRate: 0.5, health: 1500, fuel: 300, size: [10, 3.6, 16], price: 0, weapons: true, colors: [0x6c7a89] },
   },
   flight: {
     arcadeAutoLevel: 1.6,    // Rückstellkraft im Arcade-Modus
-    safeLandingVSpeed: 6,
-    safeLandingSpeed: 45,
-    crashSpeed: 18,
-    rotorSpinUp: 3,
+    safeLandingVSpeed: 6,    // m/s Sinkrate (bzw. Aufprall senkrecht zum Boden), bis zu der eine Landung schadlos ist
+    safeLandingSpeed: 45,    // m/s Bodenberührung von Flugzeugen ohne Schaden (mind. 1,6 × Abrissgeschwindigkeit)
+    crashSpeed: 18,          // m/s seitlicher Aufprall an Gebäuden, ab dem es richtig kracht
+    crashDamagePerMs: 40,    // Schaden je m/s zu harter Landung (Sturz aus ~50 m zerstört einen Hubschrauber)
+    landingSinkSpeed: 2,     // m/s Sinkrate der Helikopter-Landehilfe kurz über dem Boden (Arcade)
+    rotorSpinUp: 3,          // s bis der Rotor auf voller Drehzahl ist
+    airspaceMargin: 200,     // m vor der Weltgrenze beginnt die automatische Wende zurück zur Stadt
+    airspaceTurnRate: 0.7,   // rad/s Mindest-Wendegeschwindigkeit am Luftraum-Rand
+    airspaceTurnRadius: 70,  // m maximaler Wenderadius (schnelle Jets drehen schneller)
+    fuelUseHeli: 0.15,       // Verbrauch je s (× Rotordrehzahl)
+    fuelUsePlane: 0.25,      // Verbrauch je s bei Vollgas (Propeller)
+    fuelUseJet: 0.6,         // Verbrauch je s bei Vollgas (Jet)
+    refuelPerSecond: 0.15,   // Anteil des Tanks je s beim Auftanken auf einem Landeplatz
     parachuteDeployHeight: 6,
     parachuteFallSpeed: 5,
     parachuteSteerSpeed: 9,

@@ -321,7 +321,7 @@ export class AudioSystem {
   _aircraft(mute) {
     const g = this.game, t = this.ctx.currentTime;
     const cam = g.camera.position;
-    const a = g.vehicles.list.filter((v) => v.isAircraft && !v.destroyed && v.pos.distanceTo(cam) < 300 && ((v.rotor || 0) > 0.05 || (v.throttle || 0) > 0.02 || v.policeHeli)).sort((x, y) => x.pos.distanceTo(cam) - y.pos.distanceTo(cam))[0];
+    const a = g.vehicles.list.filter((v) => v.isAircraft && !v.destroyed && v.pos.distanceTo(cam) < 300 && ((v.rotor || 0) > 0.05 || (v.throttle || 0) > 0.02 || v.policeHeli || (v.kind2 === 'plane' && v.driver && !v.driver.dead))).sort((x, y) => x.pos.distanceTo(cam) - y.pos.distanceTo(cam))[0];
     const r = this.rotor;
     if (!a) { r.g.gain.setTargetAtTime(0, t, 0.2); r.jg.gain.setTargetAtTime(0, t, 0.2); return; }
     this._setPos(r.p, a.pos);

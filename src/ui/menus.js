@@ -263,7 +263,7 @@ export class UI {
     const W = Math.round(Math.min(window.innerWidth * 0.92, 1400)), H = Math.round(Math.min(window.innerHeight * 0.86, 900));
     const el = this._screen(`<div id="bigmap"><div class="title">${t('map.title')}</div><canvas width="${W}" height="${H}"></canvas>
       <div class="legend">${t('map.waypoint')}<br>Rechtsklick: Wegpunkt löschen<br>Mausrad: Zoom · Ziehen: Verschieben<br><br>
-      ${[['mission', 'Mission'], ['house', 'Dein Haus'], ['garage', 'Garage'], ['gun', 'Waffenladen'], ['clothes', 'Kleidung'], ['food', 'Restaurant'], ['barber', 'Frisör'], ['tuning', 'Werkstatt/Tuning'], ['dealer', 'Autohändler'], ['fuel', 'Tankstelle'], ['hospital', 'Krankenhaus'], ['police', 'Polizei'], ['bank', 'Bank'], ['scrap', 'Schrottplatz'], ['safehouse', 'Immobilie'], ['race', 'Rennen'], ['stunt', 'Stunt-Sprung'], ['target', 'Kopfgeld'], ['airport', 'Flughafen'], ['military', 'Sperrgebiet']].map(([i, l]) => `${BLIP_ICONS[i]} ${l}`).join('<br>')}
+      ${[['mission', 'Mission'], ['house', 'Dein Haus'], ['garage', 'Garage'], ['gun', 'Waffenladen'], ['clothes', 'Kleidung'], ['food', 'Restaurant'], ['barber', 'Frisör'], ['tuning', 'Werkstatt/Tuning'], ['dealer', 'Autohändler'], ['fuel', 'Tankstelle'], ['hospital', 'Krankenhaus'], ['police', 'Polizei'], ['bank', 'Bank'], ['scrap', 'Schrottplatz'], ['safehouse', 'Immobilie'], ['race', 'Rennen'], ['stunt', 'Stunt-Sprung'], ['target', 'Kopfgeld'], ['airport', 'Flughafen'], ['heli', 'Heliport (frei)'], ['airstrip', 'Strandpiste (frei)'], ['military', 'Sperrgebiet']].map(([i, l]) => `${BLIP_ICONS[i]} ${l}`).join('<br>')}
       <br><br><button class="btn" data-a="close">Schliessen (M)</button></div></div>`, 'center');
     el.style.padding = '0';
     const canvas = el.querySelector('canvas');

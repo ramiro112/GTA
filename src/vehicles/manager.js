@@ -71,8 +71,9 @@ export class VehicleManager {
   // ------------------------------------------------------------------ Streaming geparkter Autos
   _streamParking(dt) {
     const p = this.game.player.pos;
-    const near = 150, far = 210;
     for (const s of this.parkingSpots) {
+      // Luftfahrzeuge schon aus grösserer Entfernung zeigen (sichtbar von Weitem)
+      const near = s.aircraft ? 380 : 150, far = s.aircraft ? 450 : 210;
       const d = Math.hypot(s.x - p.x, s.z - p.z);
       if (s.cooldown > 0) s.cooldown -= dt;
       if (!s.vehicle && d < near && d > 40 && s.cooldown <= 0) {
@@ -81,6 +82,8 @@ export class VehicleManager {
         v.parkedSpot = s;
         v.spawnPos = v.pos.clone();
         if (s.fixed) v.locked = false;
+        // Frei nutzbare Maschinen (Flugschule) bzw. Heli auf dem eigenen Penthouse: kein Diebstahl
+        if (s.free || (s.owner && this.game.economy.ownedProperties.has(s.owner))) v.freeUse = true;
         s.vehicle = v;
       } else if (s.vehicle && d > far) {
         const v = s.vehicle;
@@ -284,7 +287,7 @@ export class VehicleManager {
     v.driver = pl;
     v.ai = null;
     v.wake();
-    if (!v.owned && !v.missionVehicle && !v.stolenCounted) {
+    if (!v.owned && !v.missionVehicle && !v.freeUse && !v.stolenCounted) {
       v.stolen = true;
       v.stolenCounted = true;
       this.game.stats.carsStolen++;
@@ -413,6 +416,7 @@ export class VehicleManager {
   pushCharacter(ch) {
     for (const v of this.list) {
       if (!v.size || v.driver === ch) continue;
+      if (ch.ignoreVehicle === v && this.game.elapsed < ch.ignoreVehicleUntil) continue; // gerade abgesprungen
       const dx = ch.pos.x - v.pos.x, dz = ch.pos.z - v.pos.z;
       const big = Math.max(v.size[0], v.size[2]) / 2 + 1;
       if (dx * dx + dz * dz > big * big) continue;

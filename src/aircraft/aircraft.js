@@ -169,7 +169,11 @@ class Aircraft {
   get right() { return new THREE.Vector3(-1, 0, 0).applyQuaternion(this.quat); }
   get speed() { return this.vel.dot(this.forward); }
   get speedKmh() { return this.vel.length() * 3.6; }
-  get altitude() { return this.pos.y - Math.max(WATER_Y, this.game.collision.groundHeight(this.pos.x, this.pos.z, this.pos.y - 0.5, 0).h); }
+  /** Höhe über Grund bzw. Wasser, gemessen an der Unterkante (Kufen/Räder): gelandet = 0. */
+  get altitude() {
+    const bottom = this.pos.y + (this.model ? this.model.bottom : 0);
+    return Math.max(0, bottom - Math.max(WATER_Y, this.game.collision.groundHeight(this.pos.x, this.pos.z, bottom + 0.3, 0).h));
+  }
   get pitchAngle() { const f = this.forward; return Math.asin(clamp(f.y, -1, 1)); }
   get rollAngle() { const r = this.right; return Math.asin(clamp(-r.y, -1, 1)); }
   get sim() { return this.game.settings.flightMode === 'sim'; }
@@ -241,6 +245,31 @@ class Aircraft {
     if (ang > 1e-7) this.quat.premultiply(new THREE.Quaternion().setFromAxisAngle(this.angVel.clone().normalize(), ang)).normalize();
   }
 
+  /**
+   * Weicher Luftraum-Rand: nahe der Weltgrenze dreht das Luftfahrzeug selbstständig Richtung Stadt
+   * (statt an der unsichtbaren Wand abzuprallen und abzustürzen). Liefert true, solange gewendet wird.
+   */
+  _airspaceLimit(dt) {
+    const lim = CONFIG.world.half - FC.airspaceMargin;
+    const p = this.pos;
+    if (Math.abs(p.x) < lim && Math.abs(p.z) < lim) { this.leavingAirspace = false; return false; }
+    if (this.onGround) return false;
+    // Gewünschte Richtung: zur Kartenmitte
+    const want = Math.atan2(-p.x, -p.z);
+    let diff = want - this.heading;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    if (Math.abs(diff) > 0.15) {
+      // Wenderadius begrenzen: schnelle Maschinen drehen entsprechend schneller (Radius ≤ airspaceTurnRadius)
+      const rate = Math.max(FC.airspaceTurnRate, this.vel.length() / FC.airspaceTurnRadius);
+      const turn = Math.sign(diff) * Math.min(Math.abs(diff), rate * dt);
+      const q = new THREE.Quaternion().setFromAxisAngle(UP, turn);
+      this.quat.premultiply(q).normalize();
+      this.vel.applyQuaternion(q);
+    }
+    this.leavingAirspace = true;
+    return true;
+  }
+
   /** Boden/Wasser/Gebäude-Kontakt. Liefert Aufprallgeschwindigkeit. */
   _contacts(dt, gearDown = true) {
     const g = this.game;
@@ -251,6 +280,8 @@ class Aircraft {
     const fromY = Math.max(this.pos.y, this.prevPos.y) + 0.5;
     const gh = col.groundHeight(this.pos.x, this.pos.z, fromY, Math.max(0.5, -this.model.bottom + 0.3)).h;
     let impact = 0;
+    const vBefore = this.vel.clone();
+    this.wasOnGround = this.onGround;
     this.onGround = false;
     if (bottomY <= gh + 0.02) {
       impact = -this.vel.y;
@@ -260,8 +291,14 @@ class Aircraft {
       const up = this.up;
       const tilt = Math.acos(clamp(up.y, -1, 1));
       const hspeed = Math.hypot(this.vel.x, this.vel.z);
-      if (impact > FC.safeLandingVSpeed || tilt > 0.7 || (!gearDown && hspeed > 8) || (this.kind2 === 'heli' && hspeed > 25)) {
-        this.damage((impact + (tilt > 0.7 ? 20 : 0) + (!gearDown ? hspeed : 0)) * 25, { type: 'crash' });
+      // Aufprall senkrecht zur Bodenfläche: an Hängen zählt auch die Horizontalgeschwindigkeit
+      // (früher „landete“ ein Flugzeug unbeschadet in einem Berghang)
+      const nrm = this._groundNormal(col);
+      impact = Math.max(impact, -(vBefore.x * nrm.x + vBefore.y * nrm.y + vBefore.z * nrm.z));
+      const maxRoll = this.kind2 === 'plane' ? Math.max(FC.safeLandingSpeed, (this.def.stallSpeed || 0) * 1.6) : 25;
+      const tooFast = hspeed > maxRoll && !this.wasOnGround;
+      if (impact > FC.safeLandingVSpeed || tilt > 0.7 || (!gearDown && hspeed > 8) || tooFast) {
+        this.damage((impact + (tilt > 0.7 ? 20 : 0) + (!gearDown ? hspeed : 0) + (tooFast ? hspeed - maxRoll : 0)) * FC.crashDamagePerMs, { type: 'crash' });
       }
       // Aufrichten auf dem Boden (Flugzeuge beim Startlauf nicht – sie müssen rotieren können)
       if (this.kind2 === 'heli' || Math.abs(this.speed) < this.def.stallSpeed * 0.8) {
@@ -290,6 +327,16 @@ class Aircraft {
       this.submerged = 1;
     } else this.submerged = 0;
     return impact;
+  }
+
+  /** Normale der Bodenfläche unter dem Luftfahrzeug (aus Höhendifferenzen, ±2 m). */
+  _groundNormal(col) {
+    const p = this.pos, y = p.y + 2;
+    const hx0 = col.groundHeight(p.x - 2, p.z, y, 0).h, hx1 = col.groundHeight(p.x + 2, p.z, y, 0).h;
+    const hz0 = col.groundHeight(p.x, p.z - 2, y, 0).h, hz1 = col.groundHeight(p.x, p.z + 2, y, 0).h;
+    // Sprünge (Dachkante) nicht als Hang werten
+    const sx = Math.abs(hx1 - hx0) > 6 ? 0 : (hx1 - hx0) / 4, sz = Math.abs(hz1 - hz0) > 6 ? 0 : (hz1 - hz0) / 4;
+    return new THREE.Vector3(-sx, 1, -sz).normalize();
   }
 
   damage(amount, info = {}) {
@@ -362,8 +409,11 @@ class Aircraft {
     // Abspringen
     this.driver = null;
     pl.vehicle = null;
-    const p = this.pos.clone().addScaledVector(this.right, 3).add(new THREE.Vector3(0, -1.5, 0));
+    // Seitlich ausserhalb der Spannweite und etwas unterhalb absetzen (früher 3 m: innerhalb der
+    // Tragflächen → die Maschine erfasste den Springer)
+    const p = this.pos.clone().addScaledVector(this.right, this.size[0] / 2 + 2.5).add(new THREE.Vector3(0, -2, 0));
     pl.teleport(p.x, p.y, p.z, this.heading);
+    pl.ignoreVehicle = this; pl.ignoreVehicleUntil = g.elapsed + 1.5;
     pl.vel.copy(this.vel).multiplyScalar(0.7);
     pl.onGround = false;
     pl.hasParachute = true;
@@ -407,11 +457,18 @@ export class Helicopter extends Aircraft {
       lift = m * G() * this.collectiveLevel * d.lift * 0.6;
     } else {
       const coll = (c.up ? 1 : 0) - (c.down ? 1 : 0);
-      // Arcade: neutral = Höhe halten (Neigung wird ausgeglichen)
-      lift = m * G() * (1 + coll * 0.85) / Math.max(0.55, up.y);
+      // Arcade: Ziel-Steig-/Sinkrate. Ohne Eingabe wird die Höhe gehalten (Schweben), dicht über dem
+      // Boden bremst die Landehilfe das Sinken auf eine sichere Aufsetzrate ab.
+      let targetVs = coll > 0 ? d.climbSpeed : coll < 0 ? -d.descentSpeed : 0;
+      if (coll < 0) {
+        const alt = this.altitude;
+        if (alt < 10) targetVs = -Math.max(FC.landingSinkSpeed, d.descentSpeed * alt / 10);
+      }
+      const wantFy = m * G() + m * 4 * (targetVs - this.vel.y) + this.vel.y * m * 0.3; // +Ausgleich des Luftwiderstands unten
+      lift = clamp(wantFy, 0, m * G() * d.lift) / Math.max(0.55, up.y);
       if (this.onGround && coll <= 0) lift = m * G() * 0.5;
-      // Sinken/Steigen dämpfen
-      force.y -= this.vel.y * m * (coll === 0 ? 1.2 : 0.3);
+      // Ohne (lebenden) Piloten keine Höhenhaltung: der Hubschrauber sackt durch und stürzt ab
+      if (!piloted) lift = m * G() * 0.3;
     }
     force.addScaledVector(up, lift * this.rotor * this.rotor);
     // Luftwiderstand
@@ -437,10 +494,11 @@ export class Helicopter extends Aircraft {
       torque.y = -c.yaw * d.yawRate * 3 - aw.y * 3 + (this.sim ? 0 : -c.roll * 0.6);
     }
     this._integrate(force, torque, dt, this.onGround ? 4 : 0.5);
+    this._airspaceLimit(dt);
     const impact = this._contacts(dt, true);
     void impact;
     if (this.onGround && this.rotor < 0.5) { this.vel.x *= 0.9; this.vel.z *= 0.9; }
-    if (piloted) this.fuel = Math.max(0, this.fuel - dt * 0.15 * (0.5 + this.rotor));
+    if (piloted) this.fuel = Math.max(0, this.fuel - dt * FC.fuelUseHeli * (0.5 + this.rotor));
     if (hv.length() > d.maxSpeed) { const k = d.maxSpeed / hv.length(); this.vel.x *= k; this.vel.z *= k; }
     this._status(dt);
   }
@@ -536,11 +594,21 @@ export class Plane extends Aircraft {
       if (!this.gearDown) force.addScaledVector(this.vel, -m * 1.5);
     }
     this._integrate(force, torque, dt, 0.8);
+    this._airspaceLimit(dt);
     // Richtungsstabilität: Flugbahn dreht sich zur Nase (Arcade stärker)
     if (!this.onGround && vF > d.stallSpeed * 0.7) {
       const sp = this.vel.length();
       const k = (this.sim ? 0.7 : 2.2) * dt;
       this.vel.lerp(this.forward.multiplyScalar(sp), Math.min(1, k));
+    }
+    // Arcade-Landehilfe: mit ausgefahrenem Fahrwerk und nicht steil nach unten zeigender Nase wird die
+    // Sinkrate kurz über dem Boden auf eine sichere Aufsetzrate begrenzt
+    if (!this.sim && this.gearDown && !this.onGround && vF > 0 && this.pitchAngle > -0.3) {
+      const alt = this.altitude;
+      if (alt < 12) {
+        const maxSink = FC.landingSinkSpeed + alt * 0.4;
+        if (this.vel.y < -maxSink) this.vel.y = damp(this.vel.y, -maxSink, 6, dt);
+      }
     }
     if (v > d.maxSpeed) this.vel.multiplyScalar(d.maxSpeed / v);
     this._contacts(dt, this.gearDown);
@@ -549,13 +617,15 @@ export class Plane extends Aircraft {
       const lvl = new THREE.Quaternion().setFromAxisAngle(UP, this.heading);
       if (vF < d.stallSpeed * 0.9) this.quat.slerp(lvl, Math.min(1, dt * 3));
     }
-    if (piloted) this.fuel = Math.max(0, this.fuel - dt * this.throttle * (this.jet ? 0.6 : 0.25));
+    if (piloted) this.fuel = Math.max(0, this.fuel - dt * this.throttle * (this.jet ? FC.fuelUseJet : FC.fuelUsePlane));
     this._status(dt);
   }
 
   updateVisual(dt, alpha) {
     super.updateVisual(dt, alpha);
-    if (this.model.prop) this.model.prop.rotation.z += dt * (5 + this.throttle * 60);
+    // Propeller: Leerlauf nur mit lebendem Piloten, sonst trudelt er mit dem restlichen Schub aus
+    const idle = this.driver && !this.driver.dead && !this.destroyed && this.fuel > 0 ? 8 : 0;
+    if (this.model.prop) this.model.prop.rotation.z += dt * (idle + this.throttle * 60);
     this.model.gear.visible = this.gearDown;
     if (this.model.flame) { this.model.flame.visible = this.throttle > 0.05; this.model.flame.scale.setScalar(0.4 + this.throttle); }
   }

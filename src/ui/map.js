@@ -11,7 +11,7 @@ const SIZE = W.half * 2;      // Meter
 export const BLIP_ICONS = {
   house: '🏠', garage: '🅿', gun: '🔫', clothes: '👕', food: '🍔', barber: '✂', tuning: '🔧', dealer: '🚘',
   hospital: '✚', police: '★', bank: '$', scrap: '♻', safehouse: '🏡', fuel: '⛽', mission: 'M', activity: '◆',
-  airport: '✈', military: '⚔', waypoint: '⬤', target: '▼', stunt: '↗', race: '🏁', viewpoint: '⛰',
+  airport: '✈', military: '⚔', heli: '🚁', airstrip: '🛩', waypoint: '⬤', target: '▼', stunt: '↗', race: '🏁', viewpoint: '⛰',
 };
 
 export class MapRenderer {

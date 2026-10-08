@@ -72,7 +72,8 @@ export class PoliceSystem {
       if (c.zone === 'military') this.hostileToPolice = true;
       return;
     }
-    const direct = c.type === 'assaultCop' || c.type === 'killCop' || this.copSees(pos);
+    // Luftfahrzeug-Diebstahl meldet die Flugsicherung sofort (frei nutzbare Maschinen lösen kein Verbrechen aus)
+    const direct = c.type === 'assaultCop' || c.type === 'killCop' || c.type === 'stealAircraft' || this.copSees(pos);
     // Gestohlenes Fahrzeug gilt als gemeldet, wenn Polizei es sieht, der Alarm losging oder der Fahrer herausgezerrt wurde
     if (c.vehicle && (direct || c.type === 'carAlarm' || c.jacked)) c.vehicle.reported = true;
     if (direct) {
@@ -126,7 +127,8 @@ export class PoliceSystem {
     }
     // Autowechsel ohne Sichtkontakt senkt die Fahndung
     if (pl.vehicle && pl.vehicle !== this.lastVehicle) {
-      if (this.stars > 0 && !this.playerSeen && !this.changedCarCredit.has(pl.vehicle)) {
+      // (nicht für das gerade als gestohlen gemeldete Fahrzeug – sonst sank die Fahndung beim Diebstahl selbst)
+      if (this.stars > 0 && !this.playerSeen && !pl.vehicle.reported && !this.changedCarCredit.has(pl.vehicle)) {
         this.changedCarCredit.add(pl.vehicle);
         this.wanted.reduceOneStar();
         g.hud.notify('Fahrzeug gewechselt – die Polizei sucht nach dem alten Wagen.');

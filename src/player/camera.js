@@ -6,6 +6,8 @@ import { CONFIG } from '../config.js';
 import { clamp, damp, angleDiff, lerp } from '../core/mathutil.js';
 
 const C = CONFIG.camera;
+const _e = new THREE.Euler();
+const _q = new THREE.Quaternion();
 
 export class ThirdPersonCamera {
   constructor(camera, collision) {
@@ -22,6 +24,8 @@ export class ThirdPersonCamera {
     this.target = new THREE.Vector3();
     this.zoom = 1;
     this.cinematic = null;   // {pos, look} für Zwischensequenzen
+    this.cockpitYaw = 0;     // Umschauen in der Cockpit-Ansicht
+    this.cockpitPitch = 0;
   }
 
   addShake(a) { this.shake = Math.min(1.5, this.shake + a); }
@@ -60,6 +64,21 @@ export class ThirdPersonCamera {
       }
       if (ctx.lookBehind) this.yaw = ctx.heading + Math.PI;
       fov = C.fov + Math.min(15, (ctx.speed || 0) * 0.18);
+      if (this.mode === 'first' && ctx.aircraft && ctx.firstPersonPos) {
+        // Cockpit-Ansicht: Blick folgt der Fluglage, Maus/rechter Stick schaut sich um (kehrt zurück, wenn ruhig)
+        if (Math.abs(look.x) + Math.abs(look.y) > 0.0001) {
+          this.cockpitYaw = clamp(this.cockpitYaw - look.x, -2.4, 2.4);
+          this.cockpitPitch = clamp(this.cockpitPitch + look.y, -1.0, 1.1);
+        } else if (this.lastMouse > 1.5) {
+          this.cockpitYaw = damp(this.cockpitYaw, 0, 2, dt);
+          this.cockpitPitch = damp(this.cockpitPitch, 0, 2, dt);
+        }
+        cam.position.copy(ctx.firstPersonPos);
+        _e.set(-this.cockpitPitch, Math.PI + this.cockpitYaw, 0, 'YXZ');
+        cam.quaternion.copy(v.mesh.quaternion).multiply(_q.setFromEuler(_e));
+        this._setFov(C.fov + 5, dt);
+        return;
+      }
       if (this.mode === 'first' && !ctx.aircraft) {
         const p = ctx.firstPersonPos;
         cam.position.copy(p);
@@ -119,7 +138,7 @@ export class ThirdPersonCamera {
     return this.camera.getWorldDirection(out);
   }
 
-  toggleMode() { this.mode = this.mode === 'third' ? 'first' : 'third'; }
+  toggleMode() { this.mode = this.mode === 'third' ? 'first' : 'third'; this.cockpitYaw = 0; this.cockpitPitch = 0; }
 }
 
 export { lerp };

@@ -1010,3 +1010,277 @@ scen.warnings = async ({ page }) => {
   await page.click('[data-a=new]');
   await page.evaluate(() => { const g = window.game; g.simulate(5); g.render(); g.player.teleport(-540, null, -690); g.simulate(2); g.render(); });
 };
+
+// ---------------------------------------------------------------------------------------------
+// Luftfahrzeuge: alle vier Typen am echten Abstellplatz – einsteigen, starten, fliegen, landen,
+// aussteigen, Absturz, Respawn. Wirft bei Fehlschlag.
+scen.aircraft = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const step1 = await page.evaluate(() => {
+    const g = window.game, pl = g.player, inp = g.input, log = [];
+    window.__log = log;
+    const ok = (c, msg) => log.push((c ? 'OK   ' : 'FAIL ') + msg);
+    g.settings.tutorialDone = true; g.ui.tutStep = 99; g.godMode = false;
+    const keys = (list, sec, fn) => { for (const k of list) inp.codesDown.add(k); const n = Math.round(sec / 0.1); for (let i = 0; i < n; i++) { g.simulate(0.1); if (fn) fn(); } for (const k of list) inp.codesDown.delete(k); };
+    window.__keys = keys; window.__ok = ok;
+    const spotOf = (type, free) => g.vehicles.parkingSpots.find((s) => s.aircraft && s.type === type && (free === undefined || !!s.free === free));
+    window.__spotOf = spotOf;
+    // Abstand zum Start
+    const st = { x: 64, z: 70 };
+    const hs = spotOf('heliSmall', true), ps = spotOf('planeProp', true);
+    ok(hs && Math.hypot(hs.x - st.x, hs.z - st.z) < 300, `Helikopter nahe am Start (${hs ? Math.hypot(hs.x - st.x, hs.z - st.z).toFixed(0) : '-'} m)`);
+    ok(ps && Math.hypot(ps.x - st.x, ps.z - st.z) < 600, `Flugzeug nahe am Start (${ps ? Math.hypot(ps.x - st.x, ps.z - st.z).toFixed(0) : '-'} m)`);
+    // Sichtbar von Weitem: Spawn schon bei ~300 m Abstand
+    pl.teleport(hs.x + 250, null, hs.z); g.simulate(0.5);
+    ok(!!hs.vehicle, 'Heliport-Helikopter erscheint schon aus 250 m Entfernung');
+
+    // ---------------- Kleiner Helikopter (Heliport Flusspark)
+    pl.teleport(hs.x + 4, null, hs.z + 4); g.simulate(0.5);
+    const h = hs.vehicle;
+    g.vehicles.beginEnter(h); g.simulate(1.5);
+    ok(pl.vehicle === h, 'Helikopter: einsteigen mit F');
+    ok(g.police.stars === 0, `Helikopter (frei): keine Fahndung (${g.police.stars}★)`);
+    const groundY = h.pos.y;
+    keys(['ShiftLeft'], 5);
+    ok(h.altitude > 12, `Helikopter: steigen (${h.altitude.toFixed(1)} m, Rotor ${(h.rotor * 100).toFixed(0)} %)`);
+    const a0 = h.altitude; g.simulate(3);
+    ok(Math.abs(h.altitude - a0) < 3, `Helikopter: schweben (${a0.toFixed(1)} → ${h.altitude.toFixed(1)} m)`);
+    keys(['KeyW'], 3);
+    const fwdSpeed = h.vel.dot(h.forward); ok(fwdSpeed > 10, `Helikopter: vorwärts (${(fwdSpeed * 3.6).toFixed(0)} km/h)`);
+    keys(['KeyS'], 4);
+    ok(h.vel.dot(h.forward) < fwdSpeed * 0.5, `Helikopter: rückwärts/bremsen (${(h.vel.dot(h.forward) * 3.6).toFixed(0)} km/h)`);
+    g.simulate(2);
+    keys(['KeyD'], 2);
+    const side = h.vel.dot(h.right); ok(side > 3, `Helikopter: seitwärts (${(side * 3.6).toFixed(0)} km/h nach rechts)`);
+    g.simulate(2);
+    const hd0 = h.heading; keys(['KeyE'], 1.5);
+    ok(Math.abs(((h.heading - hd0 + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) > 0.4, `Helikopter: drehen (${((h.heading - hd0) * 57.3).toFixed(0)}°)`);
+    // Instrumente + Cockpit
+    const instr = document.getElementById('hud-instruments') || g.hud.el.instruments;
+    const txt = instr.textContent;
+    ok(!instr.classList.contains('hidden') && /Höhe/.test(txt) && /Tempo/.test(txt) && /Kompass/.test(txt) && /Nick/.test(txt) && /Tank/.test(txt), 'HUD: Höhe, Tempo, Kompass, Neigung, Tank sichtbar');
+    inp.tap('KeyV'); g.simulate(0.3);
+    const camD = g.camera.position.distanceTo(h.pos);
+    ok(g.camera3p.mode === 'first' && camD < 4 && !pl.model.root.visible, `Cockpit-Ansicht (Kamera ${camD.toFixed(1)} m vom Rumpf)`);
+    inp.tap('KeyV'); g.simulate(0.3);
+    ok(g.camera3p.mode === 'third' && g.camera.position.distanceTo(h.pos) > 8, 'Verfolgerkamera');
+    // Landung auf dem Penthouse-Dach (Helipad)
+    const ph = g.city.landmarks ? null : null; void ph;
+    h.pos.set(90, 175, -340); h.vel.set(0, 0, 0); h.quat.set(0, 0, 0, 1); h.prevPos.copy(h.pos); g.simulate(0.5);
+    for (let i = 0; i < 25; i++) { const dx = 90 - h.pos.x, dz = -360 - h.pos.z; h.vel.x += dx * 0.05; h.vel.z += dz * 0.05; h.vel.x *= 0.8; h.vel.z *= 0.8; g.simulate(0.1); }
+    keys(['ControlLeft'], 12, () => { h.vel.x *= 0.9; h.vel.z *= 0.9; if (h.onGround) inp.codesDown.delete('ControlLeft'); });
+    g.simulate(1.5);
+    ok(h.onGround && h.pos.y > 135 && h.health > h.maxHealth * 0.9, `Helikopter: Landung auf dem Penthouse-Dach (y ${h.pos.y.toFixed(1)}, Zustand ${(h.health / h.maxHealth * 100).toFixed(0)} %)`);
+    // Zurück zum Heliport und dort landen
+    h.pos.set(hs.x, 40, hs.z); h.vel.set(0, 0, 0); h.prevPos.copy(h.pos); g.simulate(0.3);
+    keys(['ControlLeft'], 14, () => { h.vel.x *= 0.9; h.vel.z *= 0.9; if (h.onGround) inp.codesDown.delete('ControlLeft'); });
+    g.simulate(1);
+    ok(h.onGround && Math.abs(h.pos.y - groundY) < 0.6, `Helikopter: Landung am Heliport (y ${h.pos.y.toFixed(2)} / Boden ${groundY.toFixed(2)})`);
+    h.fuel = h.maxFuel * 0.4; g.simulate(3);
+    ok(h.fuel > h.maxFuel * 0.6, `Auftanken auf dem Landeplatz (${(h.fuel / h.maxFuel * 100).toFixed(0)} %)`);
+    inp.tap('KeyF'); g.simulate(0.5);
+    ok(!pl.vehicle && pl.pos.distanceTo(h.pos) < 6 && !pl.dead, 'Helikopter: aussteigen');
+    // Gebäudekollision: Helikopter seitlich in ein Hochhaus
+    g.vehicles._seatPlayer(h);
+    const tower = g.city.layout ? null : null; void tower;
+    h.pos.set(90, 60, -320); h.prevPos.copy(h.pos); h.vel.set(0, 0, -30); h.rotor = 1; g.simulate(1.5);
+    const insidePent = h.pos.x > 72 && h.pos.x < 108 && h.pos.z > -378 && h.pos.z < -342 && h.pos.y < 140;
+    ok(!insidePent && h.health < h.maxHealth, `Helikopter: prallt am Hochhaus ab (Schaden ${(h.maxHealth - h.health).toFixed(0)}, im Gebäude=${insidePent})`);
+    return log;
+  });
+  console.log(step1.join('\n'));
+  await shot('01_heli');
+
+  const step2 = await page.evaluate(() => {
+    const g = window.game, pl = g.player, inp = g.input, log = [];
+    const ok = (c, msg) => log.push((c ? 'OK   ' : 'FAIL ') + msg);
+    const keys = window.__keys, spotOf = window.__spotOf;
+    if (pl.vehicle) g.vehicles.exitVehicle(pl, true);
+    pl.revive(); pl.health = 100;
+    // ---------------- Propellerflugzeug (Strandpiste)
+    const ps = spotOf('planeProp', true);
+    pl.teleport(ps.x + 200, null, ps.z - 60); g.simulate(0.4);
+    pl.teleport(ps.x + 6, null, ps.z + 12); g.simulate(0.6);
+    const p = ps.vehicle;
+    ok(!!p, 'Flugzeug steht an der Strandpiste');
+    g.vehicles.beginEnter(p); g.simulate(1.5);
+    ok(pl.vehicle === p && g.police.stars === 0, `Flugzeug: einsteigen, keine Fahndung (${g.police.stars}★)`);
+    let minClear = 99;
+    const clearance = () => { const gh = g.collision.groundHeight(p.pos.x, p.pos.z, p.pos.y + 1, 0).h; minClear = Math.min(minClear, p.pos.y + p.model.bottom - gh); };
+    keys(['ShiftLeft'], 2.5, clearance);
+    let rot = false;
+    for (let i = 0; i < 150 && !rot; i++) { g.simulate(0.1); clearance(); if (p.speed > p.def.stallSpeed * 1.25) rot = true; }
+    const runDist = p.pos.x - ps.x;
+    ok(rot && runDist < 480, `Flugzeug: Startlauf auf der Piste (${(p.speed * 3.6).toFixed(0)} km/h nach ${runDist.toFixed(0)} m)`);
+    keys(['KeyS'], 1.2, clearance); keys([], 5, clearance);
+    ok(p.altitude > 20 && !p.destroyed, `Flugzeug: abgehoben (${p.altitude.toFixed(0)} m, ${(p.speed * 3.6).toFixed(0)} km/h)`);
+    inp.tap('KeyG'); g.simulate(0.2);
+    ok(!p.gearDown, 'Flugzeug: Fahrwerk einfahren (G)');
+    keys(['KeyD'], 1.0); keys([], 3);
+    const hdg1 = p.heading;
+    ok(Math.abs(p.rollAngle) < 0.5 && p.altitude > 15, `Flugzeug: Kurve und Stabilisierung (Roll ${(p.rollAngle * 57.3).toFixed(0)}°, ${p.altitude.toFixed(0)} m)`);
+    keys(['KeyQ'], 1.5);
+    ok(Math.abs(p.heading - hdg1) > 0.05, `Flugzeug: gieren (${((p.heading - hdg1) * 57.3).toFixed(0)}°)`);
+    // Landeanflug auf die Piste: in 30 m Höhe ausgerichtet, Regler für Sinkrate und Tempo
+    inp.tap('KeyG'); g.simulate(0.2);
+    const s = { x0: ps.x - 18, z: ps.z };
+    p.pos.set(s.x0 - 180, 28, s.z); p.quat.setFromAxisAngle(pl.pos.clone().set(0, 1, 0), Math.PI / 2); p.vel.set(p.def.stallSpeed * 1.35, -1.5, 0); p.angVel.set(0, 0, 0); p.throttle = 0.3; p.prevPos.copy(p.pos);
+    let touched = false, tdVs = 0;
+    for (let i = 0; i < 400 && !touched; i++) {
+      const alt = p.altitude, vs = p.vel.y;
+      const target = alt > 4 ? -2.2 : -0.7;
+      inp.codesDown.delete('KeyW'); inp.codesDown.delete('KeyS'); inp.codesDown.delete('ShiftLeft'); inp.codesDown.delete('ControlLeft');
+      if (vs < target - 0.4) inp.codesDown.add('KeyS'); else if (vs > target + 0.4) inp.codesDown.add('KeyW');
+      if (p.speed < p.def.stallSpeed * 1.25) inp.codesDown.add('ShiftLeft'); else if (p.speed > p.def.stallSpeed * 1.45) inp.codesDown.add('ControlLeft');
+      // Kurs halten (Querruder)
+      inp.codesDown.delete('KeyA'); inp.codesDown.delete('KeyD');
+      if (p.pos.z - s.z > 3) inp.codesDown.add('KeyA'); else if (p.pos.z - s.z < -3) inp.codesDown.add('KeyD');
+      tdVs = p.vel.y;
+      g.simulate(0.05); clearance();
+      if (p.onGround) touched = true;
+    }
+    for (const k of ['KeyW', 'KeyS', 'ShiftLeft', 'ControlLeft', 'KeyA', 'KeyD']) inp.codesDown.delete(k);
+    p.throttle = 0; inp.codesDown.add('ControlLeft');
+    keys(['Space'], 8);
+    inp.codesDown.delete('ControlLeft');
+    const onStrip = p.pos.x > s.x0 && p.pos.x < s.x0 + 520 && Math.abs(p.pos.z - s.z) < 12;
+    ok(touched && onStrip && !p.destroyed && p.health > p.maxHealth * 0.5 && p.vel.length() < 3, `Flugzeug: Landung auf der Strandpiste (Aufsetzen ${tdVs.toFixed(1)} m/s, steht bei x=${p.pos.x.toFixed(0)}, Zustand ${(p.health / p.maxHealth * 100).toFixed(0)} %)`);
+    ok(minClear > -0.6, `Flugzeug: nie durch den Boden (min. Abstand ${minClear.toFixed(2)} m)`);
+    inp.tap('KeyF'); g.simulate(0.5);
+    ok(!pl.vehicle && !pl.dead, 'Flugzeug: aussteigen');
+    // ---------------- Absturz: Flugzeug in den Boden → Explosion, Pilot tot, Respawn
+    g.vehicles._seatPlayer(p); pl.health = 100;
+    p.pos.set(100, 60, 400); p.quat.setFromAxisAngle(pl.pos.clone().set(0, 1, 0), Math.PI / 2); p.vel.set(40, 0, 0); p.prevPos.copy(p.pos); p.throttle = 1; p.health = p.maxHealth;
+    const deaths0 = g.stats.deaths; let diedInCrash = false;
+    keys(['KeyW'], 6, () => { if (p.destroyed) { inp.codesDown.delete('KeyW'); if (pl.dead) diedInCrash = true; } });
+    ok(p.destroyed && (diedInCrash || g.stats.deaths > deaths0), `Absturz: Flugzeug zerstört=${p.destroyed}, Pilot tot=${diedInCrash || g.stats.deaths > deaths0}`);
+    g.simulate(6);
+    const hosp = g.city.landmarks.spawnPoints.hospital;
+    ok(!pl.dead && !pl.vehicle && Math.hypot(pl.pos.x - hosp.x, pl.pos.z - hosp.z) < 6, 'Absturz: Respawn im Krankenhaus');
+    // Respawn des Flugzeugs an der Strandpiste nach Ablauf der Sperrzeit
+    ps.cooldown = 0; if (ps.vehicle === p) ps.vehicle = null;
+    pl.teleport(ps.x + 120, null, ps.z - 40); g.simulate(0.5);
+    ok(ps.vehicle && ps.vehicle !== p && !ps.vehicle.destroyed, 'Neues Flugzeug steht nach dem Absturz wieder an der Strandpiste');
+    // Hang-Aufprall: Flugzeug fliegt waagrecht in den Berg → Schaden (früher unbeschadet „gelandet“)
+    const p2 = g.vehicles.spawn('planeProp', { x: -60, z: -700, heading: Math.PI });
+    g.vehicles._seatPlayer(p2); pl.health = 100;
+    const gh = g.collision.groundHeight(-60, -700, 400, 0).h;
+    p2.pos.set(-60, gh + 3, -660); p2.vel.set(0, 0, -50); p2.quat.setFromAxisAngle(pl.pos.clone().set(0, 1, 0), Math.PI); p2.prevPos.copy(p2.pos); p2.throttle = 1;
+    g.simulate(3);
+    ok(p2.health < p2.maxHealth * 0.5 || p2.destroyed, `Flugzeug in Berghang: Schaden (${(p2.health / p2.maxHealth * 100).toFixed(0)} %)`);
+    g.simulate(6);
+    return log;
+  });
+  console.log(step2.join('\n'));
+
+  const step3 = await page.evaluate(() => {
+    const g = window.game, pl = g.player, inp = g.input, log = [];
+    const ok = (c, msg) => log.push((c ? 'OK   ' : 'FAIL ') + msg);
+    const keys = window.__keys, spotOf = window.__spotOf;
+    if (pl.vehicle) g.vehicles.exitVehicle(pl, true);
+    if (pl.dead) g.simulate(6);
+    pl.health = 100; g.godMode = false;
+    // ---------------- Militärhubschrauber (Militärbasis) – Diebstahl → Fahndung, Bordwaffen
+    const ms = spotOf('heliMil');
+    pl.teleport(ms.x + 150, null, ms.z); g.simulate(0.4);
+    pl.teleport(ms.x + 8, null, ms.z + 8); g.simulate(0.5);
+    const m = ms.vehicle;
+    ok(!!m, 'Militärhubschrauber steht auf der Militärbasis');
+    for (const gu of g.gangs.guards || []) gu.provoked = false;
+    g.gangs.guardsDisabled = true;
+    g.vehicles.beginEnter(m); g.simulate(1.5);
+    ok(pl.vehicle === m, 'Militärhubschrauber: einsteigen');
+    ok(g.police.stars >= 2, `Militärhubschrauber stehlen → Fahndung (${g.police.stars}★)`);
+    keys(['ShiftLeft'], 5);
+    ok(m.altitude > 10, `Militärhubschrauber: steigen (${m.altitude.toFixed(0)} m)`);
+    keys(['KeyW'], 3);
+    ok(m.vel.length() > 8, `Militärhubschrauber: vorwärts (${(m.vel.length() * 3.6).toFixed(0)} km/h)`);
+    let mgShots = 0; const origTracer = g.weapons.addTracer;
+    g.weapons.addTracer = function (a, b) { mgShots++; return origTracer.call(this, a, b); };
+    inp.codesDown.add('Mouse0'); g.simulate(0.5); inp.codesDown.delete('Mouse0');
+    g.weapons.addTracer = origTracer;
+    const proj0 = g.weapons.projectiles.length;
+    inp.tap('Mouse2'); g.simulate(0.1);
+    ok(mgShots >= 4, `Bord-MG feuert (${mgShots} Schuss in 0,5 s)`);
+    ok(g.weapons.projectiles.length > proj0, `Raketen (Maus R) (${g.weapons.projectiles.length - proj0} neu)`);
+    // Fahndung: Polizeihubschrauber erscheint und folgt
+    g.police.wanted.ensureStars(3, pl.pos); g.police.heliTimer = 0.01; g.simulate(6);
+    ok(!!g.police.heli, `Polizeihubschrauber verfolgt den Spieler (${g.police.heli ? g.police.heli.pos.distanceTo(m.pos).toFixed(0) + ' m' : 'keiner'})`);
+    // Landung und Aussteigen
+    keys(['ControlLeft'], 15, () => { m.vel.x *= 0.92; m.vel.z *= 0.92; if (m.onGround) inp.codesDown.delete('ControlLeft'); });
+    g.simulate(1);
+    ok(m.onGround && !m.destroyed, `Militärhubschrauber: Landung (Zustand ${(m.health / m.maxHealth * 100).toFixed(0)} %)`);
+    inp.tap('KeyF'); g.simulate(0.5);
+    ok(!pl.vehicle, 'Militärhubschrauber: aussteigen');
+    g.police.reset(); g.police.wanted.heat = 0;
+    // ---------------- Düsenjet (Militärbasis)
+    const js = spotOf('jet');
+    pl.teleport(js.x + 150, null, js.z); g.simulate(0.4);
+    pl.teleport(js.x + 8, null, js.z + 8); g.simulate(0.5);
+    const j = js.vehicle;
+    ok(!!j, 'Düsenjet steht auf der Militärbasis');
+    g.vehicles.beginEnter(j); g.simulate(1.5);
+    ok(pl.vehicle === j, 'Düsenjet: einsteigen');
+    g.police.reset(); g.police.wanted.heat = 0;
+    // Startlauf auf freier Fläche (Richtung Westen, Rollfeld der Basis)
+    keys(['ShiftLeft'], 2);
+    let up = false;
+    for (let i = 0; i < 200 && !up; i++) { g.simulate(0.1); if (j.speed > j.def.stallSpeed * 1.25) up = true; }
+    ok(up, `Düsenjet: Startlauf (${(j.speed * 3.6).toFixed(0)} km/h, ${Math.abs(j.pos.x - js.x).toFixed(0)} m)`);
+    keys(['KeyS'], 1.0); keys([], 5);
+    ok(j.altitude > 20 && !j.destroyed, `Düsenjet: abgehoben (${j.altitude.toFixed(0)} m, ${(j.speed * 3.6).toFixed(0)} km/h)`);
+    keys(['ShiftLeft'], 6);
+    ok(j.speed > 90, `Düsenjet: hohe Geschwindigkeit (${(j.speed * 3.6).toFixed(0)} km/h, max. ${(j.def.maxSpeed * 3.6).toFixed(0)})`);
+    // Richtung Weltgrenze: automatische Wende statt Abprall
+    const UPV = pl.pos.clone().set(0, 1, 0);
+    j.pos.set(880, 160, -300); j.quat.setFromAxisAngle(UPV, Math.PI / 2); j.vel.set(80, 0, 0); j.angVel.set(0, 0, 0); j.prevPos.copy(j.pos); j.gearDown = false; j.throttle = 0.7;
+    let turned = false, minSpd = 999, maxX = 0;
+    for (let i = 0; i < 100; i++) { g.simulate(0.1); if (j.leavingAirspace) turned = true; minSpd = Math.min(minSpd, j.speed); maxX = Math.max(maxX, j.pos.x); }
+    ok(turned && maxX < 1100 && minSpd > 40 && !j.destroyed, `Düsenjet: wendet an der Luftraumgrenze (max. x=${maxX.toFixed(0)}, min. ${(minSpd * 3.6).toFixed(0)} km/h, Kurs jetzt ${(j.heading * 57.3).toFixed(0)}°)`);
+    // Absprung mit Fallschirm über der Stadt (Fahndung vom Jet-Diebstahl vorher löschen)
+    g.police.reset(); g.police.wanted.heat = 0;
+    const d0 = g.stats.deaths, a0b = g.stats.arrests;
+    j.pos.set(-60, 160, 330); j.quat.setFromAxisAngle(UPV, Math.PI / 2); j.vel.set(70, 0, 0); j.prevPos.copy(j.pos);
+    g.simulate(0.2);
+    inp.tap('KeyF'); g.simulate(1.2);
+    ok(!pl.vehicle && !pl.onGround, `Düsenjet: Absprung in der Luft (Höhe ${(pl.pos.y - pl.groundBelow()).toFixed(0)} m)`);
+    inp.tap('Space'); g.simulate(0.3);
+    ok(pl.parachute, `Fallschirm öffnet (airTime ${pl.airTime.toFixed(2)}, über Grund ${(pl.pos.y - pl.groundBelow()).toFixed(0)} m, Tode +${g.stats.deaths - d0}, Festnahmen +${g.stats.arrests - a0b}, x=${pl.pos.x.toFixed(0)} z=${pl.pos.z.toFixed(0)})`);
+    const hurt = []; const origDmg = pl.damage;
+    pl.damage = function (a, info = {}) { hurt.push(`${info.type || '?'}:${Math.round(a)}@${Math.round(this.pos.y)}m${this.parachute ? '/Schirm' : ''}`); return origDmg.call(this, a, info); };
+    for (let i = 0; i < 80 && !pl.onGround; i++) g.simulate(0.5);
+    pl.damage = origDmg;
+    ok(pl.onGround && !pl.dead && !hurt.some((h) => h.startsWith('fall')), `Fallschirm-Landung ohne Fallschaden (HP ${pl.health.toFixed(0)}${hurt.length ? ', Schaden: ' + hurt.join(' ') : ''}, x=${pl.pos.x.toFixed(0)} z=${pl.pos.z.toFixed(0)})`);
+    // Führerloser Hubschrauber in Sichtweite stürzt ab
+    const fh = g.vehicles.spawn('heliSmall', { x: pl.pos.x + 25, z: pl.pos.z, heading: 0 });
+    fh.pos.y += 50; fh.prevPos.copy(fh.pos); fh.rotor = 1;
+    for (let i = 0; i < 20 && !fh.destroyed; i++) g.simulate(0.5);
+    ok(fh.destroyed, `Hubschrauber ohne Pilot stürzt ab und explodiert (Höhe ${fh.altitude.toFixed(0)} m, Zustand ${Math.round(fh.health)})`);
+    return log;
+  });
+  console.log(step3.join('\n'));
+  const all = [...step1, ...step2, ...step3];
+  const fails = all.filter((l) => l.startsWith('FAIL'));
+  if (fails.length) throw new Error(fails.length + ' Luftfahrzeug-Prüfungen fehlgeschlagen');
+};
+
+
+// Bilder der Luftfahrzeuge für die Dokumentation
+scen.airshots = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const prep = () => page.evaluate(() => { const g = window.game; g.settings.tutorialDone = true; g.ui.tutStep = 99; document.getElementById('hud-help').classList.add('hidden'); g.weather.set('clear', true); g.tod.hour = 11; });
+  await prep();
+  const run = (fn) => page.evaluate(fn);
+  await run(() => { const g = window.game, pl = g.player; const hs = g.vehicles.parkingSpots.find((s) => s.aircraft && s.free && s.type === 'heliSmall'); pl.teleport(hs.x + 200, null, hs.z); g.simulate(0.3); pl.teleport(hs.x + 14, null, hs.z + 12, -2.3); g.camera3p.yaw = -2.3 + Math.PI; g.camera3p.yaw = Math.atan2(hs.x - pl.pos.x, hs.z - pl.pos.z); g.camera3p.pitch = 0.12; g.simulate(1); });
+  await shot('01_heliport');
+  await run(() => { const g = window.game, pl = g.player, inp = g.input; const hs = g.vehicles.parkingSpots.find((s) => s.aircraft && s.free && s.type === 'heliSmall'); g.vehicles._seatPlayer(hs.vehicle); inp.codesDown.add('ShiftLeft'); g.simulate(4); inp.codesDown.delete('ShiftLeft'); inp.codesDown.add('KeyW'); g.simulate(3); inp.codesDown.delete('KeyW'); const h = pl.vehicle; g.camera3p.yaw = h.heading + 0.5; g.camera3p.pitch = 0.25; g.simulate(1.5); });
+  await shot('02_heli_flight');
+  await run(() => { const g = window.game; g.input.tap('KeyV'); g.simulate(0.5); });
+  await shot('03_heli_cockpit');
+  await run(() => { const g = window.game, pl = g.player; g.input.tap('KeyV'); g.simulate(0.2); g.vehicles.exitVehicle(pl, true); const ps = g.vehicles.parkingSpots.find((s) => s.aircraft && s.free && s.type === 'planeProp'); pl.teleport(ps.x + 200, null, ps.z - 40); g.simulate(0.3); pl.teleport(ps.x - 16, null, ps.z + 5, 0.6); g.camera3p.yaw = Math.atan2(ps.x + 30 - pl.pos.x, ps.z - 2 - pl.pos.z); g.camera3p.pitch = 0.16; g.tod.hour = 16.5; g.simulate(1); });
+  await shot('04_beach_airstrip');
+  await run(() => { const g = window.game, pl = g.player, inp = g.input; const ps = g.vehicles.parkingSpots.find((s) => s.aircraft && s.free && s.type === 'planeProp'); const p = ps.vehicle; g.vehicles._seatPlayer(p); inp.codesDown.add('ShiftLeft'); g.simulate(2.5); inp.codesDown.delete('ShiftLeft'); g.simulate(4); inp.codesDown.add('KeyS'); g.simulate(1.0); inp.codesDown.delete('KeyS'); g.simulate(3); g.camera3p.yaw = p.heading + 0.7; g.camera3p.pitch = 0.2; g.simulate(1.5); });
+  await shot('05_plane_flight');
+  await run(() => { const g = window.game, pl = g.player; g.vehicles.exitVehicle(pl, true); g.gangs.guardsDisabled = true; const js = g.vehicles.parkingSpots.find((s) => s.aircraft && s.type === 'jet'); pl.teleport(js.x + 200, null, js.z); g.simulate(0.3); pl.teleport(js.x + 20, null, js.z - 16, -1); g.camera3p.yaw = Math.atan2(js.x + 4 - pl.pos.x, js.z + 4 - pl.pos.z); g.camera3p.pitch = 0.18; g.tod.hour = 12; g.simulate(1); });
+  await shot('06_jet_military');
+};

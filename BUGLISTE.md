@@ -26,6 +26,26 @@ stehen in `BEKANNTE_FEHLER.md` und im `ENTWICKLUNGSLOG.md`.
 | 15 | Gamepad | Im Auto ist LT gleichzeitig **Bremse und Zielen** (Drive-by). Wer bremst, zielt mit Pistole/MP mit. Geschossen wird erst mit RT, und RT ist auch Gas. | Gas und Bremse liegen am Gamepad auf den Triggern, Zielen ebenfalls. | **Offen.** Eine saubere Lösung braucht eine eigene Drive-by-Taste, und dafür sind alle Gamepad-Tasten im Auto belegt. Tastatur und Maus sind nicht betroffen. Ohne echten Controller nicht abstimmbar. | ❌ |
 | 16 | Test | **Kein Test auf echter Hardware/GPU**: Bildrate, Ruckeln der Kamera und Gamepad-Verhalten sind im Container (Software-Rendering, kein Controller) nicht prüfbar. | Umgebung. | Logik ist per Test abgesichert (CPU ~2–3 ms pro Frame). **Offen**, braucht einen Testlauf auf einem echten Rechner. | ❌ |
 
+## Teil 2: Bugs, die beim Testen der Luftfahrzeuge auftraten
+Belege: `node tests/smoke.mjs aircraft` (50+ Prüfungen für alle vier Luftfahrzeuge).
+
+| # | Bereich | Gefundener Bug | Ursache | Lösung | Status |
+|---|---|---|---|---|---|
+| 17 | Helikopter | **Schweben ungenau**: Nach dem Loslassen von Steigen stieg der Heli noch ~12 m weiter. | Nur schwache Dämpfung der Steiggeschwindigkeit. | Arcade-Steuerung über eine Ziel-Steig-/Sinkrate (`climbSpeed`/`descentSpeed` in der Config). Ohne Eingabe wird die Höhe gehalten (Test: ±3 m). | ✅ |
+| 18 | Helikopter | **Landen war kaum möglich**: Sinken erreichte ~22 m/s, eine Dachlandung kostete 51 % Zustand. | Sinkrate war nur durch Luftwiderstand begrenzt. | Sinkrate begrenzt, dazu eine Landehilfe: unter 10 m bremst sie auf 2 m/s (`landingSinkSpeed`). Test: Dachlandung mit 100 % Zustand. | ✅ |
+| 19 | HUD | **Höhe** zeigte am Boden 1,3 m statt 0 m. | Gemessen wurde vom Rumpfmittelpunkt aus statt von Kufen bzw. Rädern. | Höhe über Grund ab der Unterkante. | ✅ |
+| 20 | Düsenjet | **Jets konnten nicht starten**: Sie standen nach Westen gerichtet 80 m vor dem Zaun und prallten beim Startlauf ab (−17 km/h). | Falsche Abstellposition und -richtung. | Jets stehen am Westende der Militärpiste, Nase nach Osten (420 m Startstrecke). | ✅ |
+| 21 | Polizei | **Luftfahrzeug-Diebstahl blieb ohne Fahndung**, wenn kein Polizist zusah (Test: 0★). | Ein Diebstahl zählte nur mit Sichtkontakt der Polizei. | Die Flugsicherung meldet Diebstähle sofort. Frei nutzbare Maschinen der Flugschule sind kein Diebstahl. | ✅ |
+| 22 | Polizei | **Fahndung sank beim Diebstahl selbst** um einen Stern (Test: 2★ → 1★). Betraf auch Autos mit Alarmanlage. | Die Regel „Fahrzeugwechsel ohne Sichtkontakt senkt die Fahndung“ griff auch beim gerade als gestohlen gemeldeten Fahrzeug. | Gemeldete Fahrzeuge sind ausgenommen. | ✅ |
+| 23 | Spieler | **Unverwundbar im Fahrzeug**: Wer nach einem Respawn innerhalb von 3 s einstieg, blieb bis zum Aussteigen unverwundbar (Absturz ohne Tod). | Die Schutzzeit lief nur im Physikschritt zu Fuss ab. | Die Schutzzeit läuft immer ab. | ✅ |
+| 24 | Flugzeuge | **Kein Schaden beim Flug in einen Hang** und beim Aufsetzen mit sehr hohem Tempo. | Nur die senkrechte Sinkrate zählte, die Hangneigung nicht. | Aufprall senkrecht zur Bodenfläche (Hangnormale) und Höchsttempo beim Aufsetzen (`safeLandingSpeed`). | ✅ |
+| 25 | Flugzeuge | **Landen war mit Tastatur sehr schwer** (Test-Regler: Aufsetzen mit −7,8 m/s, 25 % Schaden). | Im Arcade-Modus gab es keine Hilfe beim Abfangen. | Arcade-Landehilfe: mit ausgefahrenem Fahrwerk und nicht steil nach unten zeigender Nase wird die Sinkrate kurz über dem Boden begrenzt. Test: −2,7 m/s, 100 %. | ✅ |
+| 26 | Luftraum | Am **Kartenrand** prallten Luftfahrzeuge an der unsichtbaren Wand ab, verloren alle Fahrt, stürzten ins Meer und warfen den Piloten aus. | Weltgrenze als harte Wand. | Weicher Luftraum-Rand: 200 m vor der Grenze wendet die Maschine automatisch (Wenderadius ≤ 70 m), Hinweis im HUD. | ✅ |
+| 27 | Absprung | Beim **Absprung aus dem Jet** starb der Spieler sofort. | Er wurde 3 m neben dem Rumpf abgesetzt, also innerhalb der 10 m Spannweite, und die Maschine erfasste ihn. | Absetzen ausserhalb der Spannweite, 1,5 s keine Kollision mit der eigenen Maschine. | ✅ |
+| 28 | Helikopter | Ein **Hubschrauber ohne Piloten** hielt dank der Arcade-Höhenhaltung ewig die Höhe. | Die Höhenhaltung galt auch ohne Piloten. | Ohne (lebenden) Piloten sackt er ab und stürzt ab. | ✅ |
+| 29 | Flugzeuge | Der **Propeller drehte ohne Pilot**, ein Flugzeug im Leerlauf mit Pilot war **stumm**. | Feste Leerlaufdrehzahl, Ton erst ab Schub > 2 %. | Leerlauf nur mit Pilot, Motorton im Leerlauf. | ✅ |
+| 30 | HUD | Die **Fluginstrumente verdeckten Geld und Fahndung** oben rechts. | 3-spaltiges Raster wuchs nach oben. | Kompaktes 4-spaltiges Raster unten rechts. | ✅ |
+
 ### Geprüft ohne Befund
 Laden ohne Konsolenfehler **und ohne Warnungen**. Laufen und Springen. Kamera an Hauswänden (nicht in der Wand).
 Ein- und Aussteigen per Tastenablauf, Fahren. 25 s Vollgas mit Lenkwechseln (kein Abheben, nicht umgekippt).

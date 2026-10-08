@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
-import { LANDMARKS, AIRPORT, MILITARY, STUNT_JUMPS, doorPosition } from './layout.js';
+import { LANDMARKS, AIRPORT, MILITARY, STUNT_JUMPS, AIRFIELDS, doorPosition } from './layout.js';
 import { makeSignTexture } from './textures.js';
 
 const W = CONFIG.world;
@@ -24,6 +24,7 @@ export function buildLandmarks(city) {
   }
   tunnel(city);
   airport(city, out);
+  airfields(city, out);
   military(city, out);
   for (const j of STUNT_JUMPS) stuntRamp(city, j, out);
   // Aussichtspunkt auf dem Berg
@@ -376,6 +377,58 @@ function tunnel(city) {
   }
 }
 
+// ----------------------------------------------------------------- Heliport und Strandpiste
+// Frei nutzbare Maschinen der Flugschule nahe am Start (kein Sperrgebiet, kein Diebstahl).
+function airfields(city, out) {
+  const h = AIRFIELDS.heliport;
+  city.mb(h.x, h.z, 'road').ground(h.x - h.r - 2, h.z - h.r - 2, h.x + h.r + 2, h.z + h.r + 2, 0.04, 0x5a5d62, 8);
+  city.addHelipad(h.x, 0.05, h.z, h.r * 1.8);
+  for (let a = 0; a < 8; a++) {
+    const x = h.x + Math.cos(a * Math.PI / 4) * (h.r + 1.4), z = h.z + Math.sin(a * Math.PI / 4) * (h.r + 1.4);
+    city.mb(x, z, 'glow').box(x - 0.25, 0, z - 0.25, x + 0.25, 0.35, z + 0.25, 0x9fd8ff);
+  }
+  windsock(city, h.x + h.r + 4, h.z - h.r - 1);
+  postSign(city, h.name.de, h.x, h.z + h.r + 4);
+  out.parkedAircraft.push({ type: 'heliSmall', x: h.x, z: h.z, heading: Math.PI / 2, free: true });
+
+  const s = AIRFIELDS.beachStrip;
+  const road = city.mb((s.x0 + s.x1) / 2, s.z, 'road');
+  road.ground(s.x0, s.z - s.w / 2, s.x1, s.z + s.w / 2, 0.04, 0x8f9a6a, 12); // festgefahrene Graspiste
+  const mark = city.mb((s.x0 + s.x1) / 2, s.z, 'mark');
+  for (let x = s.x0 + 30; x < s.x1 - 30; x += 25) mark.ground(x, s.z - 0.4, x + 12, s.z + 0.4, 0.07, 0xffffff);
+  for (const x of [s.x0 + 3, s.x1 - 15]) for (let k = -s.w / 2 + 2; k < s.w / 2 - 2; k += 2.5) mark.ground(x, s.z + k, x + 12, s.z + k + 1.2, 0.07, 0xffffff);
+  for (let x = s.x0; x <= s.x1; x += 26) for (const side of [-1, 1]) city.mb(x, s.z, 'glow').box(x - 0.25, 0, s.z + side * (s.w / 2 + 1) - 0.25, x + 0.25, 0.35, s.z + side * (s.w / 2 + 1) + 0.25, side > 0 ? 0xffffff : 0x9fd8ff);
+  windsock(city, s.x0 + 30, s.z - s.w / 2 - 6);
+  postSign(city, s.name.de, s.x0 + 8, s.z - s.w / 2 - 5);
+  out.parkedAircraft.push({ type: 'planeProp', x: s.x0 + 18, z: s.z, heading: Math.PI / 2, free: true });
+}
+
+/** Windsack auf einem Mast (mit Kollision). */
+function windsock(city, x, z) {
+  const p = city.mb(x, z, 'plain');
+  p.cylinder(x, 0, z, 0.08, 5, 6, 0xdddddd);
+  p.box(x, 4.5, z - 0.3, x + 2.2, 5, z + 0.3, 0xff7a00, { skipBottom: false });
+  city.collision.add({ minX: x - 0.15, maxX: x + 0.15, minZ: z - 0.15, maxZ: z + 0.15, minY: 0, maxY: 5, kind: 'prop' });
+}
+
+/** Freistehendes Schild auf zwei Pfosten (Blickrichtung Norden/Süden). */
+function postSign(city, text, x, z) {
+  const p = city.mb(x, z, 'plain');
+  for (const dx of [-2.2, 2.2]) p.box(x + dx - 0.08, 0, z - 0.08, x + dx + 0.08, 2.4, z + 0.08, 0x555555);
+  city.collision.add({ minX: x - 2.4, maxX: x + 2.4, minZ: z - 0.12, maxZ: z + 0.12, minY: 0, maxY: 3.6, kind: 'prop' });
+  const tex = makeSignTexture(text.toUpperCase(), '#1d2733', '#ffd23f');
+  const mat = new THREE.MeshLambertMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3 });
+  city.nightMaterials.push(mat);
+  // Vorder- und Rückseite je eine Fläche (DoubleSide würde die Schrift von hinten spiegeln)
+  for (const rot of [0, Math.PI]) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.25), mat);
+    m.position.set(x, 3, z + (rot ? -0.02 : 0.02));
+    m.rotation.y = rot;
+    m.updateMatrixWorld();
+    city._addMesh(m);
+  }
+}
+
 // ----------------------------------------------------------------- Flughafen
 function airport(city, out) {
   const r = AIRPORT.runway;
@@ -470,8 +523,10 @@ function military(city, out) {
   }
   out.parkedAircraft.push({ type: 'heliMil', x: MILITARY.helipads[0].x, z: MILITARY.helipads[0].z, heading: 0 });
   out.parkedAircraft.push({ type: 'heliMil', x: MILITARY.helipads[1].x, z: MILITARY.helipads[1].z, heading: 0 });
-  out.parkedAircraft.push({ type: 'jet', x: 500, z: -810, heading: -Math.PI / 2 });
-  out.parkedAircraft.push({ type: 'jet', x: 560, z: -810, heading: -Math.PI / 2 });
+  // Jets am Westende der Militärpiste, Nase nach Osten (420 m Startstrecke; früher standen sie
+  // nach Westen gerichtet vor dem Zaun und konnten nicht starten)
+  out.parkedAircraft.push({ type: 'jet', x: MILITARY.runway.x0 + 22, z: MILITARY.runway.z - 8, heading: Math.PI / 2 });
+  out.parkedAircraft.push({ type: 'jet', x: MILITARY.runway.x0 + 22, z: MILITARY.runway.z + 9, heading: Math.PI / 2 });
   out.parkedVehicles.push({ type: 'military', x: 600, z: -660, heading: 0 }, { type: 'military', x: 680, z: -660, heading: 0 });
   for (const s of MILITARY.guardSpots) out.guards.push({ ...s, kind: 'soldier' });
 }

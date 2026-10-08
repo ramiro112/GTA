@@ -75,13 +75,14 @@ export class Player {
   fixedUpdate(dt) {
     // Im Fahrzeug folgt die Spielerposition dem Fahrzeug (früher blieb sie am Einstiegsort stehen:
     // Parkplatz-Streaming, Polizei, Autosave usw. arbeiteten dann mit einer falschen Position).
+    // Schutzzeit nach dem Respawn läuft auch im Fahrzeug ab (früher blieb man im Auto unverwundbar)
+    if (this.invulnerable > 0) this.invulnerable -= dt;
     if (this.vehicle) { this.prevPos.copy(this.pos); this.syncToVehicle(); return; }
     if (this.dead) return;
     this.prevPos.copy(this.pos);
     const g = this.game;
     const input = g.input;
     const col = g.collision;
-    if (this.invulnerable > 0) this.invulnerable -= dt;
 
     // Klettern läuft als kurze Animation
     if (this.climb) {
@@ -335,7 +336,8 @@ export class Player {
     if (this.hitFlash > 0) this.hitFlash = Math.max(0, this.hitFlash - dt * 2);
     if (this.vehicle) {
       // Position übernimmt das Fahrzeug (Sitz)
-      m.root.visible = this.vehicle.showDriver !== false;
+      // In der Ego-/Cockpit-Ansicht die eigene Figur ausblenden (sonst steckt die Kamera im Kopf)
+      m.root.visible = this.vehicle.showDriver !== false && this.game.camera3p.mode !== 'first';
       this.vehicle.placeOccupant(this, m.root);
       m.animate(dt, { state: this.vehicle.isBike ? 'sit' : 'sit', speed: 0, aim: this.aiming && this.vehicle.isBike });
       return;

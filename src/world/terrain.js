@@ -13,6 +13,8 @@ export const FLAT_ZONES = [
   { name: 'city', minX: -700, maxX: 905, minZ: -560, maxZ: 525, margin: 30 },
   { name: 'airport', minX: -940, maxX: -265, minZ: -925, maxZ: -590, margin: 40 },
   { name: 'military', minX: 355, maxX: 885, minZ: -925, maxZ: -575, margin: 40 },
+  // Strandpiste (siehe AIRFIELDS.beachStrip in layout.js): Sand eben machen
+  { name: 'beachStrip', minX: -95, maxX: 455, minZ: 516, maxZ: 544, margin: 12 },
 ];
 
 /** Gebiete (für Karte, Spawn-Dichte, Banden-Reviere). Reihenfolge = Priorität. */

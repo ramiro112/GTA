@@ -6,7 +6,7 @@ import { CONFIG } from '../config.js';
 import { Helicopter, createAircraft } from './aircraft.js';
 import { events } from '../core/events.js';
 import { t } from '../core/i18n.js';
-import { LANDMARKS } from '../world/layout.js';
+import { LANDMARKS, AIRFIELDS, AIRPORT, MILITARY } from '../world/layout.js';
 import { clamp } from '../core/mathutil.js';
 
 export class FlightSystem {
@@ -16,7 +16,7 @@ export class FlightSystem {
     const vm = game.vehicles;
     for (const type of Object.keys(CONFIG.aircraft)) vm.factories[type] = (opts) => createAircraft(game, type, opts);
     // Abgestellte Luftfahrzeuge als feste Parkplätze
-    for (const a of game.city.landmarks.parkedAircraft) vm.parkingSpots.push({ x: a.x, z: a.z, heading: a.heading, type: a.type, vehicle: null, cooldown: 0, fixed: true, aircraft: true });
+    for (const a of game.city.landmarks.parkedAircraft) vm.parkingSpots.push({ x: a.x, z: a.z, heading: a.heading, type: a.type, vehicle: null, cooldown: 0, fixed: true, aircraft: true, free: !!a.free });
     // Helikopter auf dem Penthouse-Dach
     const ph = LANDMARKS.penthouse;
     vm.parkingSpots.push({ x: ph.x, z: ph.z, y: ph.h, heading: 0, type: 'heliSmall', vehicle: null, cooldown: 0, fixed: true, aircraft: true, owner: 'penthouse' });
@@ -52,15 +52,40 @@ export class FlightSystem {
     g.police.heli = null;
   }
 
+  /** Landeplätze, an denen gelandete Maschinen auftanken (Heliport, Strandpiste, Flughafen, Militär, Dach-Helipads). */
+  _refuelSpot(v) {
+    const p = v.pos;
+    const s = AIRFIELDS.beachStrip, h = AIRFIELDS.heliport, r = AIRPORT.runway, ap = AIRPORT.apron;
+    if (Math.hypot(p.x - h.x, p.z - h.z) < h.r + 4) return true;
+    if (p.x > s.x0 && p.x < s.x1 && Math.abs(p.z - s.z) < s.w / 2 + 3) return true;
+    if (p.x > r.x0 && p.x < r.x1 && Math.abs(p.z - r.z) < r.w / 2 + 3) return true;
+    if (p.x > ap.minX && p.x < ap.maxX && p.z > ap.minZ && p.z < ap.maxZ) return true;
+    for (const hp of [...AIRPORT.helipads, ...MILITARY.helipads]) if (Math.hypot(p.x - hp.x, p.z - hp.z) < 10) return true;
+    for (const lm of Object.values(LANDMARKS)) if (lm.helipad && Math.hypot(p.x - lm.x, p.z - lm.z) < Math.min(lm.w, lm.d) * 0.4 && p.y > lm.h - 1) return true;
+    return false;
+  }
+
   update(dt) {
     const g = this.game;
     const pl = g.player;
     const v = pl.vehicle;
     if (v && v.isAircraft && !g.paused && !pl.dead) v.fireWeapons(dt, g.input);
+    // Auftanken: gelandet und fast stillstehend auf einem Landeplatz
+    if (v && v.isAircraft && !v.destroyed && v.onGround && v.vel.length() < 1.5 && v.fuel < v.maxFuel && this._refuelSpot(v)) {
+      v.fuel = Math.min(v.maxFuel, v.fuel + v.maxFuel * CONFIG.flight.refuelPerSecond * dt);
+      this.refuelling = true;
+    } else this.refuelling = false;
     // Polizeihubschrauber entfernen, wenn keine Fahndung mehr
     const h = g.police && g.police.heli;
     if (h && (g.police.stars < CONFIG.police.helicopterFrom - 1 || h.removed) && (h.pos.distanceTo(pl.pos) > 200 || g.police.stars === 0)) this.removePoliceHeli();
     this._instruments(v);
+  }
+
+  /** Karte: frei nutzbare Luftfahrzeuge nahe am Start. */
+  mapBlips(out) {
+    const h = AIRFIELDS.heliport, s = AIRFIELDS.beachStrip;
+    out.push({ x: h.x, z: h.z, icon: 'heli', size: 7, label: 'Heliport Flusspark (Helikopter frei nutzbar)' });
+    out.push({ x: s.x0 + 18, z: s.z, icon: 'airstrip', size: 7, label: 'Strandpiste (Flugzeug frei nutzbar)' });
   }
 
   _instruments(v) {
@@ -71,20 +96,39 @@ export class FlightSystem {
     el.classList.remove('hidden');
     hud.el.speedo.classList.add('hidden');
     const alt = v.altitude, spd = v.vel.length() * 3.6, vs = v.vel.y;
-    const hdg = ((-v.heading * 180 / Math.PI) + 180 + 360) % 360; // 0 = Norden
+    const hdg = compassHeading(v.heading);
     const pitch = v.pitchAngle * 180 / Math.PI, roll = v.rollAngle * 180 / Math.PI;
     const isPlane = v.kind2 === 'plane';
     const thr = isPlane ? v.throttle : (v.sim ? v.collectiveLevel / 1.8 : (v.controls.up ? 1 : v.controls.down ? 0 : 0.5));
+    const fuelPct = Math.round(v.fuel / v.maxFuel * 100);
+    const cond = Math.max(0, Math.round(v.health / v.maxHealth * 100));
+    const warn = (txt, bad) => (bad ? `<span style="color:#ff3b30">${txt}</span>` : txt);
     const cells = [
       [t('hud.alt'), `${alt.toFixed(0)} m`], [t('hud.spd'), `${spd.toFixed(0)} km/h`], [t('hud.vs'), `${vs >= 0 ? '+' : ''}${vs.toFixed(1)}`],
-      [t('hud.hdg'), `${hdg.toFixed(0).padStart(3, '0')}°`], [t('hud.throttle'), `${Math.round(thr * 100)}%`], [t('hud.fuel'), `${Math.round(v.fuel / v.maxFuel * 100)}%`],
+      [t('hud.hdg'), `${compassLabel(hdg)} ${hdg.toFixed(0).padStart(3, '0')}°`], [t('hud.att'), `${signed(pitch)}° / ${signed(roll)}°`], [t('hud.throttle'), `${Math.round(thr * 100)}%`],
+      [t('hud.fuel'), this.refuelling ? `${fuelPct}% ⛽` : warn(`${fuelPct}%`, fuelPct < 15)], [t('hud.cond'), warn(`${cond}%`, cond < 30)],
     ];
-    if (isPlane) cells.push([t('hud.gear'), v.gearDown ? t('hud.down') : t('hud.up')], [t('hud.flaps'), ['0', '1', '2'][v.flaps]], ['Status', v.stalled ? '<span style="color:#ff3b30">STALL</span>' : 'OK']);
-    else cells.push(['Rotor', `${Math.round(v.rotor * 100)}%`], ['Modus', v.sim ? 'SIM' : 'ARCADE'], ['Zustand', `${Math.max(0, Math.round(v.health / v.maxHealth * 100))}%`]);
-    const html = `<div class="instr" style="grid-column: span 3"><div id="horizon"><div class="sky" style="transform: rotate(${-roll}deg) translateY(${clamp(pitch, -45, 45) * 1.2}px)"></div><div class="mark"></div></div></div>` +
+    if (isPlane) cells.push([t('hud.gear'), v.gearDown ? t('hud.down') : t('hud.up')], [t('hud.flaps'), ['0', '1', '2'][v.flaps]], ['Status', v.stalled ? warn('STALL', true) : 'OK']);
+    else cells.push(['Rotor', `${Math.round(v.rotor * 100)}%`], ['Modus', v.sim ? 'SIM' : 'ARCADE']);
+    if (this.game.camera3p.mode === 'first') cells.push(['', t('hud.cockpit')]);
+    if (v.leavingAirspace) cells.push(['Grenze', '<span style="color:#ffd23f">Wende</span>']);
+    const html = `<div class="instr big"><div id="horizon"><div class="sky" style="transform: rotate(${-roll}deg) translateY(${clamp(pitch, -45, 45) * 1.2}px)"></div><div class="mark"></div></div></div>` +
       cells.map(([l, val]) => `<div class="instr"><div class="l">${l}</div><div class="v">${val}</div></div>`).join('');
     el.innerHTML = html;
   }
+}
+
+/** Ganzzahl mit Vorzeichen, ohne "-0". */
+function signed(v) { const r = Math.round(v) || 0; return (r > 0 ? '+' : '') + r; }
+
+/** Kompasskurs in Grad (0 = Norden = -z, 90 = Osten = +x). */
+export function compassHeading(heading) {
+  return (((-heading * 180) / Math.PI) + 180 + 720) % 360;
+}
+
+/** Himmelsrichtung (N, NO, O, SO, S, SW, W, NW) zu einem Kompasskurs. */
+export function compassLabel(deg) {
+  return ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
 }
 
 /** KI-Polizeihubschrauber: kreist über dem Spieler, Suchscheinwerfer, Schütze ab 4 Sternen. */

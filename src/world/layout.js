@@ -69,6 +69,22 @@ export const STUNT_JUMPS = [
   { id: 'industry', x: 570, z: -240, axis: 'z', dir: -1, len: 12, h: 3.0, w: 6 }, // über Container
 ];
 
+/**
+ * Frei nutzbare Luftfahrzeuge nahe am Spielstart (Flugschule von Jules):
+ * Heliport im Flusspark (~200 m vom Start) und eine Graspiste am Strand (~460 m vom Start).
+ */
+export const AIRFIELDS = {
+  heliport: { name: { de: 'Heliport Flusspark', en: 'River Park Heliport' }, x: -135, z: 120, r: 9 },
+  beachStrip: { name: { de: 'Strandpiste', en: 'Beach Airstrip' }, x0: -80, x1: 440, z: 530, w: 18 },
+};
+
+/** Liegt (x, z) in einer freizuhaltenden Flugfläche (Piste/Heliport mit Sicherheitsabstand)? */
+export function inAirfieldClearance(x, z) {
+  const h = AIRFIELDS.heliport, s = AIRFIELDS.beachStrip;
+  if (Math.hypot(x - h.x, z - h.z) < h.r + 8) return true;
+  return x > s.x0 - 15 && x < s.x1 + 15 && Math.abs(z - s.z) < s.w / 2 + 6;
+}
+
 /** Flugplatz-/Militär-Geometrie. */
 export const AIRPORT = {
   runway: { x0: -900, x1: -320, z: -770, w: 44 },
@@ -184,7 +200,10 @@ export function generateCity(seed = CONFIG.seed) {
   // ---------------------------------------------------------------- Banden-Treffpunkte zusätzlich
   gangSpots.push({ x: 560, z: -110, gang: 'rust' }, { x: 700, z: -380, gang: 'rust' }, { x: 610, z: 120, gang: 'wolves' }, { x: 760, z: 360, gang: 'wolves' });
 
-  return { buildings, props, parking, blocks, trees, gangSpots, landmarks: LANDMARKS };
+  // Heliport und Strandpiste freihalten (Bäume, Palmen, Schirme, Bänke)
+  const clearTrees = trees.filter((t) => !inAirfieldClearance(t.x, t.z));
+  const clearProps = props.filter((p) => !inAirfieldClearance(p.x, p.z));
+  return { buildings, props: clearProps, parking, blocks, trees: clearTrees, gangSpots, landmarks: LANDMARKS };
 }
 
 /** grober Abstand zur Bergstrasse (nur für Baum-Freihaltung). */
