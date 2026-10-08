@@ -15,6 +15,8 @@ import { GangSystem } from './ai/gangs.js';
 import { PoliceSystem } from './police/police.js';
 import { RespawnSystem } from './player/respawn.js';
 import { FlightSystem } from './aircraft/flight.js';
+import { MissionSystem } from './missions/missions.js';
+import { ActivitySystem } from './missions/activities.js';
 
 /** Hülle, damit das Partikelsystem wie ein System aktualisiert wird. */
 class FxSystem {
@@ -26,5 +28,5 @@ class FxSystem {
 }
 
 export function installSystems(game) {
-  game.systemModules = [Economy, FxSystem, Debris, Combat, WeaponSystem, Population, PedSystem, TrafficSystem, GangSystem, PoliceSystem, VehicleManager, FlightSystem, Interactions, Services, RespawnSystem];
+  game.systemModules = [Economy, FxSystem, Debris, Combat, WeaponSystem, Population, PedSystem, TrafficSystem, GangSystem, PoliceSystem, VehicleManager, FlightSystem, Interactions, Services, MissionSystem, ActivitySystem, RespawnSystem];
 }

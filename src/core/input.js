@@ -30,6 +30,7 @@ export const DEFAULT_BINDINGS = {
   camera: ['KeyV'],
   lookBehind: ['KeyB'],
   resetVehicle: ['KeyX'],
+  activity: ['KeyT'],
   // Luftfahrzeuge
   throttleUp: ['ShiftLeft'],
   throttleDown: ['ControlLeft'],

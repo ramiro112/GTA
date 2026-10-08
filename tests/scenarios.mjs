@@ -455,3 +455,51 @@ scen.flight = async ({ page, shot }) => {
   await page.evaluate(() => { const g = window.game; g.camera3p.pitch = -0.6; g.simulate(0.1); });
   await shot('02_police_heli');
 };
+
+scen.missions = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const r = await page.evaluate(async () => {
+    const g = window.game, out = [], pl = g.player, M = g.missions, E = M.engine;
+    const skip = (sec) => { for (let i = 0; i < sec * 4; i++) { g.input.tap('Enter'); g.simulate(0.25); } };
+    out.push('Verfügbar: ' + E.available().map((m) => m.id).join(','));
+    // Mission 1 durchspielen
+    pl.teleport(64, null, 73); g.simulate(0.5);
+    out.push('Aktiv nach Marker: ' + (E.active && E.active.id));
+    skip(3);
+    const car = E.active.data.car;
+    out.push('Stufe ' + E.active.stage + ', Auto: ' + !!car);
+    pl.teleport(car.pos.x - 2, null, car.pos.z); g.vehicles._seatPlayer(car); g.simulate(0.5);
+    out.push('Stufe nach Einsteigen ' + E.active.stage);
+    car.pos.set(330, car.pos.y, 66); car.vel.set(0, 0, 0); g.simulate(1.5);
+    skip(4);
+    out.push('Mission 1 erledigt: ' + E.completed.has('heimkehr') + ', Geld ' + g.economy.money + ', Pistole ' + pl.inventory.has('pistol'));
+    // Alle Missionen anlaufen lassen
+    for (const id of [...E.missions.keys()]) {
+      const def = E.missions.get(id);
+      for (const r of def.requires || []) E.completed.add(r);
+      if (pl.vehicle) g.vehicles.exitVehicle(pl, true);
+      pl.revive(); g.police.reset();
+      pl.teleport(def.start.x, null, def.start.z); g.simulate(0.4);
+      if (!E.active) { out.push(id + ': NICHT gestartet'); continue; }
+      skip(5);
+      const st = E.active ? E.active.stage : 'beendet';
+      out.push(`${id}: Stufe ${st} – ${document.getElementById('hud-objective').textContent.slice(0, 70)}`);
+      if (E.active) E.abort('Test');
+      g.simulate(0.3);
+      E.completed.delete(id);
+    }
+    return out;
+  });
+  console.log(r.join('\n'));
+};
+scen.dbg3 = async ({ page }) => {
+  await page.click('[data-a=new]');
+  console.log(await page.evaluate(() => {
+    const g = window.game, pl = g.player, E = g.missions.engine, out = [];
+    E.completed.add('heimkehr'); E.completed.add('ersatzteile');
+    pl.teleport(330, null, 70); g.simulate(0.4);
+    out.push('aktiv ' + (E.active && E.active.id) + ' stage ' + E.active.stage);
+    for (let i = 0; i < 12; i++) { g.input.tap('Enter'); g.simulate(0.25); out.push(`t${i} stage ${E.active ? E.active.stage : '-'} enemies ${E.active && E.active.data.enemies ? E.active.data.enemies.map((n) => (n.dead ? 'D' : n.removed ? 'R' : 'A')).join('') : '-'} wave ${E.active && E.active.data.wave}`); }
+    return out.join('\n');
+  }));
+};

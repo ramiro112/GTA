@@ -187,6 +187,10 @@ export class GangSystem {
     const inMil = (pos) => pos.x > MILITARY.fence.minX && pos.x < MILITARY.fence.maxX && pos.z > MILITARY.fence.minZ && pos.z < MILITARY.fence.maxZ;
     const inAirport = (pos) => pos.x > -900 && pos.x < -300 && pos.z > -800 && pos.z < -660 && (g.player.vehicle ? g.player.vehicle.isAircraft : true);
     for (const s of this.guardSpots) {
+      if (this.guardsDisabled) {
+        if (s.npc) { g.population.remove(s.npc); this.guards.splice(this.guards.indexOf(s.npc), 1); s.npc = null; }
+        continue;
+      }
       const d = Math.hypot(s.x - p.x, s.z - p.z);
       if (!s.npc && d < 220 && (s.cooldown || 0) <= 0) {
         const npc = g.population.spawn({ kind: s.kind, x: s.x, z: s.z, heading: this.rng.float(0, 6.28) });
