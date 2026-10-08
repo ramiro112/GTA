@@ -201,8 +201,8 @@ export const CONFIG = {
   // --------------------------------------------------------------------------
   police: {
     crimePoints: {
-      stealCar: 25, carAlarm: 15, shooting: 30, assault: 20, hitPed: 35, killPed: 60,
-      assaultCop: 120, killCop: 220, explosion: 80, stealAircraft: 200, trespass: 140, robbery: 220,
+      stealCar: 50, carAlarm: 20, shooting: 55, assault: 40, hitPed: 50, killPed: 80,
+      assaultCop: 120, killCop: 200, explosion: 90, stealAircraft: 200, trespass: 400, robbery: 160,
     },
     starThresholds: [50, 150, 350, 700, 1200],  // Punkte für 1..5 Sterne
     loseSightTime: [12, 18, 25, 32, 40],          // Sekunden ausser Sicht bis Fahndung erlischt

@@ -125,6 +125,13 @@ export class MapRenderer {
     ctx.save();
     ctx.translate(cw / 2, ch / 2);
     for (const b of blips) {
+      if (b.circle) {
+        const cx = (b.x - px) * SCALE * scale, cz = (b.z - pz) * SCALE * scale;
+        const c = Math.cos(rotation), s = Math.sin(rotation);
+        ctx.beginPath(); ctx.arc(cx * c - cz * s, cx * s + cz * c, b.circle * SCALE * scale, 0, Math.PI * 2);
+        ctx.fillStyle = b.color; ctx.fill();
+        continue;
+      }
       const dx = (b.x - px) * SCALE * scale, dz = (b.z - pz) * SCALE * scale;
       const c = Math.cos(rotation), s = Math.sin(rotation);
       let x = dx * c - dz * s, y = dx * s + dz * c;
@@ -175,6 +182,7 @@ export class MapRenderer {
     ctx.translate(cw / 2, ch / 2);
     for (const b of blips) {
       const [bx, by] = this.toImg(b.x, b.z);
+      if (b.circle) { ctx.beginPath(); ctx.arc((bx - cx) * s, (by - cy) * s, b.circle * SCALE * s, 0, Math.PI * 2); ctx.fillStyle = b.color; ctx.fill(); continue; }
       drawBlip(ctx, (bx - cx) * s, (by - cy) * s, b, true);
     }
     const [ppx, ppy] = this.toImg(px, pz);

@@ -324,3 +324,60 @@ scen.ai = async ({ page, shot }) => {
   console.log(r2.join('\n'));
   await shot('02_gang');
 };
+
+scen.police = async ({ page, shot }) => {
+  await page.click('[data-a=new]');
+  const r = await page.evaluate(() => {
+    const g = window.game, out = [];
+    const pl = g.player;
+    pl.teleport(330, null, -300, Math.PI); g.camera3p.yaw = Math.PI;
+    pl.inventory.give('pistol', 200); pl.inventory.select(2); g.weapons._equipModel();
+    g.simulate(1);
+    // Polizist in Sichtweite, Spieler schiesst
+    const cop = g.population.spawn({ kind: 'cop', x: 330, z: -285 });
+    cop.give('pistol'); cop.equip('fist');
+    g.simulate(0.5);
+    const inp = g.input;
+    inp.codesPressed.add('Mouse0'); g.simulate(0.3);
+    out.push('Nach Schuss neben Polizist: Sterne ' + g.police.stars);
+    g.police.wanted.ensureStars(3, pl.pos);
+    pl.health = 1e9;
+    g.simulate(12);
+    out.push(`3 Sterne: Streifenwagen ${g.police.cars.length}, Polizisten ${g.police.cops.length}, gesehen ${g.police.playerSeen}`);
+    return out;
+  });
+  console.log(r.join('\n'));
+  await shot('01_police');
+  const r2 = await page.evaluate(() => {
+    const g = window.game, out = [], pl = g.player;
+    // Fahrzeugflucht → Strassensperre
+    const v = g.vehicles.spawn('sports', { x: 330, z: -300, heading: Math.PI / 2 });
+    pl.teleport(328, null, -300); g.vehicles._seatPlayer(v);
+    g.police.roadblockTimer = 0;
+    g.input.codesDown.add('KeyW');
+    g.simulate(6);
+    g.input.codesDown.delete('KeyW');
+    out.push(`Strassensperren ${g.police.roadblocks.length}, Nagelbänder ${g.police.spikes.length}, Reifen platt ${v.wheels.filter((w) => w.burst).length}`);
+    // Festnahme: Spieler zu Fuss, Polizist daneben, 1 Stern
+    g.vehicles.exitVehicle(pl);
+    g.police.reset();
+    pl.teleport(90, null, 300);
+    g.simulate(0.5);
+    pl.health = 100;
+    g.police.wanted.ensureStars(1, pl.pos);
+    pl.inventory.select(0);
+    const c = g.police._makeCop('cop', pl.pos.x + 1, pl.pos.z);
+    const hist = [];
+    for (let i = 0; i < 8; i++) { g.simulate(0.5); hist.push(`${g.police.stars}/${g.police.bustTimer.toFixed(1)}/${c.pos.distanceTo(pl.pos).toFixed(1)}/${pl.speed?.toFixed(1)}`); }
+    out.push('Verlauf Sterne/Bust/Abstand/Tempo: ' + hist.join(' ') + ' Historie: ' + g.police.wanted.history.map((h) => h.type).join(','));
+    out.push('Festnahme ausgelöst: ' + !!g.respawn?.pending + ' Kopfgeld-Gefühl: ' + g.stats.arrests);
+    g.simulate(6);
+    out.push(`Nach Festnahme: Sterne ${g.police.stars}, Position ${pl.pos.x.toFixed(0)},${pl.pos.z.toFixed(0)}, Waffen ${pl.inventory.slots.filter(Boolean).length}, Geld ${g.economy.money}`);
+    // Tod → Krankenhaus
+    pl.damage(500, { type: 'test' });
+    g.simulate(8);
+    out.push(`Nach Tod: HP ${pl.health}, tot ${pl.dead}, Position ${pl.pos.x.toFixed(0)},${pl.pos.z.toFixed(0)}, Tode ${g.stats.deaths}`);
+    return out;
+  });
+  console.log(r2.join('\n'));
+};
