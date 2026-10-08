@@ -1,0 +1,14 @@
+# Entwicklungslog – PORT AURELIA
+
+Alle Zeiten in UTC. Start des Projekts: **08.10.2026, 15:57**.
+
+| Zeit | Meilenstein | Was getan | Probleme & Lösungen |
+|---|---|---|---|
+| 15:57 | M0 | Repository geprüft (leer). Node 22, Python 3.13, Chromium und Playwright vorhanden. | – |
+| 16:00 | M0 | MINDMAP.md (Baum + Mermaid), TECH_ENTSCHEIDUNG.md (6 Optionen bewertet → Three.js + eigene Physik). | Beim ersten Schreiben der Mind Map waren versehentlich alle Punkte als erledigt markiert → sofort korrigiert, abgehakt wird nur, was wirklich fertig ist. |
+| 16:05 | M0 | Projektgerüst: Event-Bus, Eingabe-Manager (Aktionen, Rebinding, Gamepad), Spielschleife mit festem Zeitschritt, Objekt-Pool, Zufallsgenerator mit Seed, config.js mit allen Spielwerten. | – |
+| 16:20 | M1 | Terrain als Höhenfunktion (flache Stadt, Berge, Fluss, Küsten, Tunnelsporn), Strassengraph (Raster, Autobahnring, 6 Brücken, Tunnel, Kreisverkehr, Bergstrasse, Zufahrten Flughafen/Militär, Ampeln), A*-Suche. | Kreuzungen im Tunnel → Nord-Süd-Strassen enden vor der Autobahn, wenn sie im Tunnel münden würden. |
+| 16:40 | M1 | Stadtgenerator (Innenstadt-Türme, Wohnblöcke, Vorort-Häuser, Industrie, Hafen, Park, Strand, Wald), Wahrzeichen mit betretbaren Innenräumen (Haus, Garage, Waffenladen, Kleidung, Restaurant, Frisör, Werkstatt, Autohaus, Bank), Krankenhaus, Polizei, Tankstellen, Parkhaus mit Rampe/Treppe/Dach, Tunnel, Flughafen, Militärbasis, Stunt-Rampen. | Kollisionswelt als Spatial Hash aus Boxen + Rampen, unabhängig von Three.js → testbar. |
+| 17:10 | M1 | Rendering: Geometrie pro 200-m-Chunk und Material verschmolzen (MeshBuilder mit Vertex-Farben), prozedurale Fassaden mit Nacht-Fenstern, InstancedMesh für Requisiten/Bäume, Ampeln mit Phasen, Himmel-Shader mit Wolken, Sonne/Mond/Sterne, Nebel, Wasser, Regen, Blitze, Tag/Nacht- und Wetter-Logik. | – |
+| 17:35 | M1 | Spielfigur (Box-Modell, prozedurale Animationen), Steuerung zu Fuss (Gehen/Rennen/Sprinten/Ausdauer, Springen, Ducken, Klettern, Schwimmen, Fallschaden, Fallschirm-Vorbereitung), Third-Person-Kamera mit Kollision, HUD mit Minimap, Ladebildschirm, Hauptmenü, Pause. | 1) Kamera schaute nach Start nach oben: Pointer-Lock lieferte ein riesiges Mausdelta → Sprünge > 300 px werden ignoriert. 2) Headless-Chromium rendert per Software mit ~1–2 FPS → Test-Hook `game.simulate()` spult die Physik ohne Rendern vor. 3) Tunnel-Einfahrt war vom Berg verdeckt → Einschnitt im Terrain vor den Portalen. 4) Nacht zu dunkel → mehr Umgebungslicht, stärkere Laternenkegel. |
+| 18:00 | M1 | Unit-Tests (15) für Kern, Terrain, Strassennetz (Erreichbarkeit aller Knoten), Ampeln, Kollision, Stadtgenerator. Smoke-Test mit Screenshots aller Gebiete. | `node --test tests/unit/` fand keine Dateien → Glob `tests/unit/*.test.mjs`. |
