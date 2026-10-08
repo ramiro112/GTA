@@ -503,3 +503,52 @@ scen.dbg3 = async ({ page }) => {
     return out.join('\n');
   }));
 };
+
+scen.ui = async ({ page, shot, wait }) => {
+  // Hauptmenü-Unterseiten
+  for (const a of ['settings', 'controls', 'credits', 'load']) {
+    await page.click(`[data-a=${a}]`);
+    await wait(200);
+    if (a === 'settings' || a === 'controls') await shot('menu_' + a);
+    await page.click('[data-a=back]');
+  }
+  await page.click('[data-a=new]');
+  const r = await page.evaluate(() => {
+    const g = window.game, out = [];
+    g.simulate(0.5);
+    // Speichern am Bett im eigenen Haus
+    const bed = g.interactions.points.find((p) => p.type === 'save' && p.lm && p.lm.id === 'playerHouse');
+    g.player.teleport(bed.x, null, bed.z); g.simulate(0.3);
+    out.push('Speichern möglich: ' + g.saves.canSaveHere());
+    g.economy.money = 4242;
+    g.player.inventory.give('smg', 60);
+    g.saves.save('1');
+    g.economy.money = 1; g.player.teleport(500, null, 500);
+    g.saves.load('1'); g.simulate(0.2);
+    out.push(`Geladen: Geld ${g.economy.money}, MP ${g.player.inventory.has('smg')}, Pos ${g.player.pos.x.toFixed(0)},${g.player.pos.z.toFixed(0)}`);
+    out.push('Slots: ' + g.saves.list().map((s) => s.slot + ':' + (s.meta ? 'belegt' : 'leer')).join(' '));
+    return out;
+  });
+  console.log(r.join('\n'));
+  // Waffenladen
+  await page.evaluate(() => { const g = window.game; g.player.teleport(182, null, -79); g.simulate(0.3); g.economy.money = 20000; g.interactions.update(); g.interactions.handlers.get('shop').action(g.interactions.points.find((p) => p.shop === 'gunshop')); });
+  await wait(200);
+  await shot('shop_gunshop');
+  const r2 = await page.evaluate(() => { const g = window.game; const i = g.ui.menu.items.findIndex((x) => x.label.includes('Schrotflinte')); g.ui._menuSelect(i); const ok = g.player.inventory.has('shotgun'); g.ui.closeMenu(); return 'Schrotflinte gekauft: ' + ok + ', Geld ' + g.economy.money; });
+  console.log(r2);
+  // Pause, Karte, Handy, Missionen, Inventar
+  await page.evaluate(() => window.game.ui.showPause());
+  await wait(200); await shot('pause');
+  await page.evaluate(() => { window.game.ui.resume(); window.game.ui.showMap(); });
+  await wait(300); await shot('map');
+  await page.evaluate(() => { window.game.ui.closeMap(); window.game.ui.phone.open(); });
+  await wait(200); await shot('phone');
+  await page.evaluate(() => { const ph = window.game.ui.phone; ph.screen = 'cheats'; ph.sel = 0; ph.render(); });
+  await wait(100); await shot('phone_cheats');
+  await page.evaluate(() => { window.game.ui.phone.close(); window.game.ui.mode = 'pause'; window.game.pause(true); window.game.ui.showMissionLog(() => {}); });
+  await wait(200); await shot('missionlog');
+  await page.evaluate(() => { window.game.ui.showInventory(() => {}); });
+  await wait(200); await shot('inventory');
+  const r3 = await page.evaluate(() => { const g = window.game; g.ui.resume(); g.settings.language = 'en'; g.applySettings(); g.ui.showPause(); const txt = document.querySelector('.menu-btn').textContent; g.settings.language = 'de'; g.applySettings(); g.ui.resume(); return 'Englisch: ' + txt; });
+  console.log(r3);
+};
